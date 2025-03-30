@@ -1,0 +1,53 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "cdkbooster - CDK basic",
+      "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
+      "args": ["../../src/cdkbooster.ts", "-c environment=test", "-v"],
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal",
+      "type": "node",
+      "cwd": "${workspaceRoot}/test/cdk-basic"
+    },
+    {
+      "name": "cdkbooster - CDK basic - monorepo",
+      "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
+      "args": [
+        "../src/cdkbooster.ts",
+        "-c environment=test",
+        "--subfolder=cdk-basic"
+      ],
+      // "args": ["../src/cdkbooster.ts", "-w"],
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal",
+      "type": "node",
+      "cwd": "${workspaceRoot}/test"
+    },
+    {
+      "name": "cdkbooster - CDK ESM",
+      "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
+      "args": ["../../src/cdkbooster.ts", "-c environment=test"],
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal",
+      "type": "node",
+      "cwd": "${workspaceRoot}/test/cdk-esm"
+    },
+    {
+      "name": "cdkbooster - CDK config",
+      "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
+      "args": ["../../src/cdkbooster.ts", "-w"],
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal",
+      "type": "node",
+      "cwd": "${workspaceRoot}/test/cdk-config"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "extends": "@tsconfig/node20/tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*", "test/**/*", "*.*", ".vitepress/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "cdk-esm-test-ts-esmodule",
+  "version": "1.0.0",
+  "type": "module",
+  "devDependencies": {
+    "@tsconfig/node20": "^20.1.5"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sts": "^3.775.0"
+  }
+}

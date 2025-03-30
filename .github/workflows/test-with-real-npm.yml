@@ -1,0 +1,35 @@
+name: Test with real npm
+
+run-name: 'Test with real npm: mode=${{ inputs.mode }}, testMonorepo=${{ inputs.testMonorepo }}'
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "'global' (real NPM installed globally) or 'local' (real NPM installed locally) "
+        type: choice
+        required: true
+        options:
+          - global
+          - local
+      testMonorepo:
+        description: 'Test monorepo by specifying folder in config'
+        type: boolean
+        default: false
+      version:
+        description: 'Specify the version of the package'
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/common-test.yml
+    with:
+      mode: ${{ inputs.mode }}
+      testMonorepo: ${{ inputs.testMonorepo }}
+      version: ${{ inputs.version }}
+    secrets: inherit

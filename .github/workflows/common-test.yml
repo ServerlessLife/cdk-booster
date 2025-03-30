@@ -1,0 +1,79 @@
+name: Common CI tests
+
+run-name: 'Test: mode=${{ inputs.mode }}, testMonorepo=${{ inputs.testMonorepo }}'
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "'build' (just builded code, used while publishing) or 'global' (real NPM installed globally) or 'local' (real NPM installed locally)"
+        type: string
+        required: true
+      testMonorepo:
+        description: 'Test monorepo by specifying folder in config'
+        type: string
+        required: true
+      version:
+        description: 'Specify the version of the package'
+        type: string
+        required: false
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  DISABLE_PARALLEL_DEPLOY: false
+  REAL_NPM: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
+  TEST_MONOREPO: ${{ inputs.testMonorepo }}
+  node_version: 22
+
+jobs:
+  test-cdk-basic:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: test-cdk-basic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.node_version }}
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install dependencies
+        run: |
+          node prepareForTest.js cdk-basic
+          npm i
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        if: ${{ inputs.mode == 'build' }}
+        with:
+          name: dist
+          path: dist
+      - name: Install cdk-booster globally
+        if: ${{ inputs.mode == 'global' }}
+        run: |
+          npm i cdk-booster@${{ inputs.version || 'latest' }} -g
+        working-directory: test
+      - name: Install cdk-booster locally
+        if: ${{ inputs.mode == 'local' }}
+        run: |
+          npm i cdk-booster@${{ inputs.version || 'latest' }}
+        working-directory: test
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-west-1
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHubActions
+      - name: Destroy
+        run: npm run destroy
+        working-directory: test/cdk-basic
+        continue-on-error: true
+      - name: Deploy
+        run: npm run deploy
+        working-directory: test/cdk-basic
+      - name: Test
+        run: npx vitest --retry 1 test/cdk-basic.test.ts
+      - name: Test - observability mode
+        run: OBSERVABLE_MODE=true npx vitest --retry 1 test/cdk-basic.test.ts

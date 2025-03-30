@@ -1,0 +1,28 @@
+{
+  "name": "cdk-esm",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "cdk-esm": "bin/cdk-esm.js"
+  },
+  "scripts": {
+    "deploy": "cdk deploy --all -c environment=test --require-approval never --outputs-file cdk-outputs.json",
+    "build": "cdk synth -c environment=test",
+    "destroy": "cdk destroy  --all -c environment=test --force"
+  },
+  "devDependencies": {
+    "@tsconfig/node20": "^20.1.5",
+    "@types/aws-lambda": "^8.10.148",
+    "@types/node": "22.13.14",
+    "aws-cdk": "2.1006.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
+    "typescript": "~5.8.2"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sts": "^3.775.0",
+    "aws-cdk-lib": "2.186.0",
+    "constructs": "^10.4.2",
+    "source-map-support": "^0.5.21"
+  }
+}

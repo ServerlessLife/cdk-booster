@@ -1,0 +1,9 @@
+.cdkbooster
+dist
+cdk.out
+.serverless
+.aws-sam
+src/extension/aws
+*.html
+.vitepress/dist
+.vitepress/cache
