@@ -18,6 +18,21 @@ export class CdkbasicStack extends cdk.Stack {
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
         logRetention: log.RetentionDays.ONE_DAY,
+        bundling: {
+          commandHooks: {
+            beforeBundling(): string[] {
+              return [];
+            },
+            beforeInstall(): string[] {
+              return [];
+            },
+            afterBundling(inputDir: string, outputDir: string): string[] {
+              return [
+                `cp ${path.join(inputDir, 'test/cdk-basic/services/test.txt')} ${outputDir}`,
+              ];
+            },
+          },
+        },
       },
     );
 

@@ -14,6 +14,10 @@ import { Worker } from 'node:worker_threads';
 import { getModuleDirname, getProjectDirname } from '../getDirname.js';
 import { findNpmPath } from '../utils/findNpmPath.js';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 /**
  * Support for AWS CDK framework
@@ -287,13 +291,20 @@ export class CdkFramework implements IFramework {
             fileExtension === 'mjs' || fileExtension === 'cjs'
               ? 'js'
               : (fileExtension as esbuild.Loader);
+
           // Inject code to get the file path of the Lambda function and CDK hierarchy
           if (
             args.path.includes(
               path.join('aws-cdk-lib', 'aws-lambda-nodejs', 'lib', 'bundling.'),
             )
           ) {
-            const codeToFind = 'let depsCommand';
+            contents = contents.replace(
+              'return chain([...this.props.commandHooks',
+              'const command = chain([...this.props.commandHooks',
+            );
+
+            const codeToFind =
+              'afterBundling(options.inputDir,options.outputDir)??[]])';
 
             if (!contents.includes(codeToFind)) {
               throw new Error(`Can not find code to inject in ${args.path}`);
@@ -303,78 +314,84 @@ export class CdkFramework implements IFramework {
             // path to match it with the Lambda function. Store data in the global variable.
             contents = contents.replace(
               codeToFind,
-              `;
-              global.lambdas = global.lambdas ?? [];
+              codeToFind +
+                `;
+              if (!options.outputDir.startsWith('/asset-output')) {
+                global.lambdas = global.lambdas ?? [];
 
-              const out = pathJoin(options.outputDir,outFile);
+                const out = pathJoin(options.outputDir,outFile);
 
-              const lambdaInfo = {
-                entryPoint: relativeEntryPath,
-                outfile: out,
-                options: options,
-                props: this.props,
-              };
+                const lambdaInfo = {
+                  entryPoint: relativeEntryPath,
+                  outfile: out,
+                  inputDir: options.inputDir,
+                  options: options,
+                  props: this.props,
+                  command: command,
+                };
 
+                global.lambdas.push(lambdaInfo);
 
-              global.lambdas.push(lambdaInfo);
+                //console.log("****** OUT ***********", out);
+                console.log("****** esbuildCommand ***********", esbuildCommand);
 
-              console.log("****** OUT ***********", out);
-              console.log("****** esbuildCommand ***********", esbuildCommand);
+                // replace the esbuild with dummy command
+                //esbuildCommand = ["touch", out];
+              }
 
-              ` + codeToFind,
+              return command;
+              `,
             );
 
             contents = contents.replace(
               'const sourceMapEnabled',
               'let sourceMapEnabled',
             );
-          } else if (
-            //node_modules/aws-cdk-lib/core/lib/asset-staging.js
-            args.path.includes(
-              //path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
-              `lib/asset-staging.js`,
-            )
-          ) {
-            console.log(`**** INJECTING ${args.path} ****`);
-            const codeToFind = 'if(fs().existsSync(bundleDir))return';
+            // } else if (
+            //   //node_modules/aws-cdk-lib/core/lib/asset-staging.js
+            //   args.path.includes(
+            //     //path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
+            //     `lib/asset-staging.js`,
+            //   )
+            // ) {
+            //   console.log(`**** INJECTING ${args.path} ****`);
+            //   const codeToFind = 'if(fs().existsSync(bundleDir))return';
 
-            if (!contents.includes(codeToFind)) {
-              throw new Error(`Can not find code to inject in ${args.path}`);
-            }
+            //   if (!contents.includes(codeToFind)) {
+            //     throw new Error(`Can not find code to inject in ${args.path}`);
+            //   }
 
-            // Inject code to get the file path of the Lambda function and CDK hierarchy
-            // path to match it with the Lambda function. Store data in the global variable.
-            contents = contents.replace(codeToFind, `return;` + codeToFind);
+            //   // Inject code to get the file path of the Lambda function and CDK hierarchy
+            //   // path to match it with the Lambda function. Store data in the global variable.
+            //   contents = contents.replace(codeToFind, `return;` + codeToFind);
 
-            /*
-          if (
-            //node_modules/aws-cdk-lib/core/lib/asset-staging.js
-            args.path.includes(
-              //path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
-              `lib/asset-staging.js`,
-            )
-          ) {
-            console.log(`**** INJECTING ${args.path} ****`);
-            const codeToFind = 'if(fs().existsSync(bundleDir))return';
+            // if (
+            //   //node_modules/aws-cdk-lib/core/lib/asset-staging.js
+            //   args.path.includes(
+            //     //path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
+            //     `lib/asset-staging.js`,
+            //   )
+            // ) {
+            //   console.log(`**** INJECTING ${args.path} ****`);
+            //   const codeToFind = 'if(fs().existsSync(bundleDir))return';
 
-            if (!contents.includes(codeToFind)) {
-              throw new Error(`Can not find code to inject in ${args.path}`);
-            }
+            //   if (!contents.includes(codeToFind)) {
+            //     throw new Error(`Can not find code to inject in ${args.path}`);
+            //   }
 
-            // Inject code to get the file path of the Lambda function and CDK hierarchy
-            // path to match it with the Lambda function. Store data in the global variable.
-            contents = contents.replace(
-              codeToFind,
-              `;
-              global.lambdas = global.lambdas ?? [];
+            //   // Inject code to get the file path of the Lambda function and CDK hierarchy
+            //   // path to match it with the Lambda function. Store data in the global variable.
+            //   contents = contents.replace(
+            //     codeToFind,
+            //     `;
+            //     global.lambdas = global.lambdas ?? [];
 
-              const lambdaInfo = {
-                entryPoint: bundleDir,
-              };
+            //     const lambdaInfo = {
+            //       entryPoint: bundleDir,
+            //     };
 
-              global.lambdas.push(lambdaInfo);` + codeToFind,
-            );
-            */
+            //     global.lambdas.push(lambdaInfo);` + codeToFind,
+            //   );
           } else if (
             args.path.includes(
               path.join(
@@ -457,7 +474,7 @@ export class CdkFramework implements IFramework {
     const CDK_CONTEXT_JSON = {
       ...context,
       // prevent compiling assets
-      'aws:cdk:bundling-stacks': [],
+      //'aws:cdk:bundling-stacks': [],
     };
     process.env.CDK_CONTEXT_JSON = JSON.stringify(CDK_CONTEXT_JSON);
     Logger.verbose(`[CDK] Context:`, JSON.stringify(CDK_CONTEXT_JSON, null, 2));
@@ -477,17 +494,42 @@ export class CdkFramework implements IFramework {
     const lambdasEsBuildCommands = lambdas as any as Array<{
       entryPoint: string;
       outfile: string;
+      command: string;
+      //inputDir: string;
     }>;
 
     for (const lambdasEsBuildCommand of lambdasEsBuildCommands) {
-      console.log('************ BUNDING ************');
+      console.log(
+        `************ BUNDING ${lambdasEsBuildCommand.entryPoint} ****************`,
+      );
+
+      let command = lambdasEsBuildCommand.command;
+
+      console.log(command);
+
+      command = command.replaceAll('-building', '');
+      await execAsync(command);
+
+      // execute bash command async
+
+      /*
+      const outSubPath =
+        lambdasEsBuildCommand.outfile.split(/cdk\.out[^/]*\/?/)[1];
+
+      // Join with inputDir/cdk
+      let newOutfile = path.join(getProjectDirname(), 'cdk.out', outSubPath);
+      newOutfile = newOutfile.replace('-building', '');
+
+
+
       await esbuild.build({
         entryPoints: [lambdasEsBuildCommand.entryPoint],
         bundle: true,
         platform: 'node',
         keepNames: true,
-        outfile: lambdasEsBuildCommand.outfile,
+        outfile: newOutfile,
       });
+      */
 
       console.log('************ BUNDING END ************');
     }
@@ -561,6 +603,19 @@ export class CdkFramework implements IFramework {
     awsCdkLibPath: string | undefined;
     compileCodeFile: string;
   }) {
+    process.chdir(getProjectDirname());
+    process.env.CDK_OUTDIR = 'cdk.out';
+    await import(pathToFileURL(compileCodeFile).href);
+
+    const lambdas = (global as any).lambdas;
+
+    Logger.verbose(
+      `[CDK] Found the following Lambda functions in the CDK code:`,
+      JSON.stringify(lambdas, null, 2),
+    );
+
+    return lambdas;
+    /*
     const lambdas: any[] = await new Promise((resolve, reject) => {
       const workerPath = pathToFileURL(
         path.resolve(
@@ -626,6 +681,7 @@ export class CdkFramework implements IFramework {
       packageJsonPath: string;
       bundling: BundlingOptions;
     }[];
+    */
   }
 
   /**

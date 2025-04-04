@@ -4,12 +4,16 @@ import * as cdk from 'aws-cdk-lib';
 import { CdkbasicStack } from '../lib/cdk-basic-stack';
 import { CdkbasicStack2 } from '../lib/subfolder/cdk-basic-stack2';
 
+// log all environment variables
+//console.log('Environment Variables:', JSON.stringify(process.env, null, 2));
+
 const app = new cdk.App();
 
-const environment = app.node.tryGetContext('environment');
+let environment = app.node.tryGetContext('environment');
 
 if (!environment) {
-  throw new Error('Environment is not set in the context');
+  //throw new Error('Environment is not set in the context');
+  environment = 'test';
 }
 
 new CdkbasicStack(app, 'CdkbasicStack', {

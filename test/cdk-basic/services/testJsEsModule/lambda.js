@@ -3,6 +3,8 @@ import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 const stsClient = new STSClient({});
 
 export const lambdaHandler = async (event, context) => {
+  console.log('TEST');
+
   // check context
   const remainingTime = context.getRemainingTimeInMillis();
   if (remainingTime === undefined) {
