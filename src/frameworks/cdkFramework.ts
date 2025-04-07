@@ -336,7 +336,7 @@ export class CdkFramework implements IFramework {
                 console.log("****** esbuildCommand ***********", esbuildCommand);
 
                 // replace the esbuild with dummy command
-                //esbuildCommand = ["touch", out];
+                esbuildCommand = ["touch", out];
               }
 
               return command;
@@ -347,6 +347,7 @@ export class CdkFramework implements IFramework {
               'const sourceMapEnabled',
               'let sourceMapEnabled',
             );
+
             // } else if (
             //   //node_modules/aws-cdk-lib/core/lib/asset-staging.js
             //   args.path.includes(
@@ -356,15 +357,12 @@ export class CdkFramework implements IFramework {
             // ) {
             //   console.log(`**** INJECTING ${args.path} ****`);
             //   const codeToFind = 'if(fs().existsSync(bundleDir))return';
-
             //   if (!contents.includes(codeToFind)) {
             //     throw new Error(`Can not find code to inject in ${args.path}`);
             //   }
-
             //   // Inject code to get the file path of the Lambda function and CDK hierarchy
             //   // path to match it with the Lambda function. Store data in the global variable.
             //   contents = contents.replace(codeToFind, `return;` + codeToFind);
-
             // if (
             //   //node_modules/aws-cdk-lib/core/lib/asset-staging.js
             //   args.path.includes(
@@ -374,22 +372,18 @@ export class CdkFramework implements IFramework {
             // ) {
             //   console.log(`**** INJECTING ${args.path} ****`);
             //   const codeToFind = 'if(fs().existsSync(bundleDir))return';
-
             //   if (!contents.includes(codeToFind)) {
             //     throw new Error(`Can not find code to inject in ${args.path}`);
             //   }
-
             //   // Inject code to get the file path of the Lambda function and CDK hierarchy
             //   // path to match it with the Lambda function. Store data in the global variable.
             //   contents = contents.replace(
             //     codeToFind,
             //     `;
             //     global.lambdas = global.lambdas ?? [];
-
             //     const lambdaInfo = {
             //       entryPoint: bundleDir,
             //     };
-
             //     global.lambdas.push(lambdaInfo);` + codeToFind,
             //   );
           } else if (
@@ -605,6 +599,7 @@ export class CdkFramework implements IFramework {
   }) {
     process.chdir(getProjectDirname());
     process.env.CDK_OUTDIR = 'cdk.out';
+
     await import(pathToFileURL(compileCodeFile).href);
 
     const lambdas = (global as any).lambdas;
@@ -652,13 +647,13 @@ export class CdkFramework implements IFramework {
         }
       });
 
-      // worker.stdout.on('data', (data: Buffer) => {
-      //   Logger.log(`[CDK]`, data.toString());
-      // });
+      worker.stdout.on('data', (data: Buffer) => {
+        Logger.log(`[CDK]`, data.toString());
+      });
 
-      // worker.stderr.on('data', (data: Buffer) => {
-      //   Logger.error(`[CDK]`, data.toString());
-      // });
+      worker.stderr.on('data', (data: Buffer) => {
+        Logger.error(`[CDK]`, data.toString());
+      });
 
       worker.postMessage({
         compileOutput: compileCodeFile,

@@ -4,6 +4,7 @@ import { pathToFileURL } from 'url';
 import { Logger } from '../logger.mjs';
 
 Logger.setVerbose(workerData.verbose);
+process.env.CDK_OUTDIR = 'cdk.out';
 
 Logger.verbose(`[CDK] [Worker] Started`);
 
