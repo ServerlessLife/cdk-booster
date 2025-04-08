@@ -7,7 +7,7 @@
     {
       "name": "cdkbooster - CDK basic",
       "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
-      "args": ["../../src/cdkbooster.ts",  "-v"],
+      "args": ["../../src/cdkbooster.ts", "-v"],
       "request": "launch",
       "skipFiles": ["<node_internals>/**"],
       "console": "integratedTerminal",
