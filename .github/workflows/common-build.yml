@@ -50,9 +50,6 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
-      - name: Bootstrap CDK
-        # so I do not have to do it manually when CDK is updated
-        run: npx cdk bootstrap aws://${{secrets.AWS_ACCOUNT_ID}}/eu-west-1
       - uses: actions/upload-artifact@v4
         with:
           name: dist
