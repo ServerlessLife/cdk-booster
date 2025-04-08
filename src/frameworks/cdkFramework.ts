@@ -2,12 +2,8 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { BundlingType, LambdaResource } from '../types/resourcesDiscovery.js';
 import { outputFolder } from '../constants.js';
 import { findPackageJson } from '../utils/findPackageJson.js';
-import { IFramework } from './iFrameworks.js';
-import { CloudFormation } from '../cloudFormation.js';
-import { AwsConfiguration } from '../types/awsConfiguration.js';
 import { LldConfigBase } from '../types/lldConfig.js';
 import { Logger } from '../logger.js';
 import { Worker } from 'node:worker_threads';
@@ -22,45 +18,13 @@ const execAsync = promisify(exec);
 /**
  * Support for AWS CDK framework
  */
-export class CdkFramework implements IFramework {
-  /**
-   * Framework name
-   */
-  public get name(): string {
-    return 'cdk';
-  }
-
-  /**
-   * Can this class handle the current project
-   * @returns
-   */
-  public async canHandle(): Promise<boolean> {
-    // check if there is cdk.json
-    const cdkJsonPath = path.resolve('cdk.json');
-
-    try {
-      await fs.access(cdkJsonPath, fs.constants.F_OK);
-      return true;
-    } catch {
-      Logger.verbose(
-        `[CDK] This is not a CDK project. ${cdkJsonPath} not found`,
-      );
-      return false;
-    }
-  }
-
+export class CdkFramework {
   /**
    * Get Lambda functions
    * @param config Configuration
    * @returns Lambda functions
    */
-  public async getLambdas(config: LldConfigBase): Promise<LambdaResource[]> {
-    const awsConfiguration: AwsConfiguration = {
-      region: config.region,
-      profile: config.profile,
-      role: config.role,
-    };
-
+  public async prebuild(config: LldConfigBase) {
     const cdkConfigPath = 'cdk.json';
     // read cdk.json and extract the entry file
 
@@ -72,143 +36,6 @@ export class CdkFramework implements IFramework {
       `[CDK] Found Lambda functions:`,
       JSON.stringify(lambdasInCdk, null, 2),
     );
-
-    //get all stack names
-    const stackNames = [
-      ...new Set( // unique
-        lambdasInCdk.map((lambda) => {
-          return lambda.stackName;
-        }),
-      ),
-    ];
-    Logger.verbose(
-      `[CDK] Found the following stacks in CDK: ${stackNames.join(', ')}`,
-    );
-
-    const lambdasDeployed = (
-      await Promise.all(
-        stackNames.map(async (stackName) => {
-          const lambdasInStackPromise = CloudFormation.getLambdasInStack(
-            stackName,
-            awsConfiguration,
-          );
-          const lambdasMetadataPromise =
-            this.getLambdaCdkPathFromTemplateMetadata(
-              stackName,
-              awsConfiguration,
-            );
-
-          const lambdasInStack = await lambdasInStackPromise;
-          Logger.verbose(
-            `[CDK] Found Lambda functions in the stack ${stackName}:`,
-            JSON.stringify(lambdasInStack, null, 2),
-          );
-          const lambdasMetadata = await lambdasMetadataPromise;
-          Logger.verbose(
-            `[CDK] Found Lambda functions in the stack ${stackName} in the template metadata:`,
-            JSON.stringify(lambdasMetadata, null, 2),
-          );
-
-          return lambdasInStack.map((lambda) => {
-            return {
-              lambdaName: lambda.lambdaName,
-              cdkPath: lambdasMetadata.find(
-                (lm) => lm.logicalId === lambda.logicalId,
-              )?.cdkPath,
-            };
-          });
-        }),
-      )
-    ).flat();
-
-    const lambdasDiscovered: LambdaResource[] = [];
-
-    // compare lambdas in CDK and Stack and get the code path of the Lambdas
-    for (const lambdaInCdk of lambdasInCdk) {
-      const functionName = lambdasDeployed.find(
-        (lambda) => lambda.cdkPath === lambdaInCdk.cdkPath,
-      )?.lambdaName;
-
-      if (functionName) {
-        const external = [
-          ...(lambdaInCdk.bundling?.externalModules ?? []),
-          ...(lambdaInCdk.bundling?.nodeModules ?? []),
-        ];
-
-        lambdasDiscovered.push({
-          functionName: functionName,
-          codePath: lambdaInCdk.codePath,
-          handler: lambdaInCdk.handler,
-          packageJsonPath: lambdaInCdk.packageJsonPath,
-          bundlingType: BundlingType.ESBUILD,
-          esBuildOptions: {
-            minify: lambdaInCdk.bundling?.minify,
-            format: lambdaInCdk.bundling?.format,
-            sourcesContent: lambdaInCdk.bundling?.sourcesContent,
-            target: lambdaInCdk.bundling?.target,
-            loader: lambdaInCdk.bundling?.loader as any,
-            logLevel: lambdaInCdk.bundling?.logLevel,
-            keepNames: lambdaInCdk.bundling?.keepNames,
-            tsconfig: lambdaInCdk.bundling?.tsconfig,
-            metafile: lambdaInCdk.bundling?.metafile,
-            banner: lambdaInCdk.bundling?.banner
-              ? { js: lambdaInCdk.bundling?.banner }
-              : undefined,
-            footer: lambdaInCdk.bundling?.footer
-              ? { js: lambdaInCdk.bundling?.footer }
-              : undefined,
-            charset: lambdaInCdk.bundling?.charset,
-            define: lambdaInCdk.bundling?.define,
-            external: external.length > 0 ? external : undefined,
-          },
-          metadata: {
-            framework: 'cdk',
-            stackName: lambdaInCdk.stackName,
-            cdkPath: lambdaInCdk.cdkPath,
-          },
-        });
-      }
-    }
-
-    return lambdasDiscovered;
-  }
-
-  /**
-   * Getz Lambda functions from the CloudFormation template metadata
-   * @param stackName
-   * @param awsConfiguration
-   * @returns
-   */
-  protected async getLambdaCdkPathFromTemplateMetadata(
-    stackName: string,
-    awsConfiguration: AwsConfiguration,
-  ): Promise<
-    Array<{
-      logicalId: string;
-      cdkPath: string;
-    }>
-  > {
-    const cfTemplate = await CloudFormation.getCloudFormationStackTemplate(
-      stackName,
-      awsConfiguration,
-    );
-    // get all Lambda functions in the template
-    if (cfTemplate) {
-      const lambdas = Object.entries(cfTemplate.Resources)
-        .filter(
-          ([, resource]: [string, any]) =>
-            resource.Type === 'AWS::Lambda::Function',
-        )
-        .map(([key, resource]: [string, any]) => {
-          return {
-            logicalId: key,
-            cdkPath: resource.Metadata['aws:cdk:path'],
-          };
-        });
-      return lambdas;
-    }
-
-    return [];
   }
 
   /**
@@ -357,45 +184,6 @@ export class CdkFramework implements IFramework {
               codeToFind3,
               `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3.replace('return', '')})`,
             );
-
-            // } else if (
-            //   //node_modules/aws-cdk-lib/core/lib/asset-staging.js
-            //   args.path.includes(
-            //     //path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
-            //     `lib/asset-staging.js`,
-            //   )
-            // ) {
-            //   console.log(`**** INJECTING ${args.path} ****`);
-            //   const codeToFind = 'if(fs().existsSync(bundleDir))return';
-            //   if (!contents.includes(codeToFind)) {
-            //     throw new Error(`Can not find code to inject in ${args.path}`);
-            //   }
-            //   // Inject code to get the file path of the Lambda function and CDK hierarchy
-            //   // path to match it with the Lambda function. Store data in the global variable.
-            //   contents = contents.replace(codeToFind, `return;` + codeToFind);
-            // if (
-            //   //node_modules/aws-cdk-lib/core/lib/asset-staging.js
-            //   args.path.includes(
-            //     //path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
-            //     `lib/asset-staging.js`,
-            //   )
-            // ) {
-            //   console.log(`**** INJECTING ${args.path} ****`);
-            //   const codeToFind = 'if(fs().existsSync(bundleDir))return';
-            //   if (!contents.includes(codeToFind)) {
-            //     throw new Error(`Can not find code to inject in ${args.path}`);
-            //   }
-            //   // Inject code to get the file path of the Lambda function and CDK hierarchy
-            //   // path to match it with the Lambda function. Store data in the global variable.
-            //   contents = contents.replace(
-            //     codeToFind,
-            //     `;
-            //     global.lambdas = global.lambdas ?? [];
-            //     const lambdaInfo = {
-            //       entryPoint: bundleDir,
-            //     };
-            //     global.lambdas.push(lambdaInfo);` + codeToFind,
-            //   );
           } else if (
             args.path.includes(
               path.join(
@@ -474,7 +262,7 @@ export class CdkFramework implements IFramework {
       });
     }
 
-    const context = await this.getCdkContext(cdkConfigPath, config);
+    const context = await this.getCdkContext(cdkConfigPath);
 
     const CDK_CONTEXT_JSON = {
       ...context,
@@ -484,10 +272,7 @@ export class CdkFramework implements IFramework {
     process.env.CDK_CONTEXT_JSON = JSON.stringify(CDK_CONTEXT_JSON);
     Logger.verbose(`[CDK] Context:`, JSON.stringify(CDK_CONTEXT_JSON, null, 2));
 
-    const awsCdkLibPath = await findNpmPath(
-      path.join(getProjectDirname(), config.subfolder ?? '/'),
-      'aws-cdk-lib',
-    );
+    const awsCdkLibPath = await findNpmPath(getProjectDirname(), 'aws-cdk-lib');
     Logger.verbose(`[CDK] aws-cdk-lib path: ${awsCdkLibPath}`);
 
     const lambdas = await this.runCdkCodeAndReturnLambdas({
@@ -514,84 +299,8 @@ export class CdkFramework implements IFramework {
 
       command = command.replaceAll('-building', '');
       await execAsync(command);
-
-      // execute bash command async
-
-      /*
-      const outSubPath =
-        lambdasEsBuildCommand.outfile.split(/cdk\.out[^/]*\/?/)[1];
-
-      // Join with inputDir/cdk
-      let newOutfile = path.join(getProjectDirname(), 'cdk.out', outSubPath);
-      newOutfile = newOutfile.replace('-building', '');
-
-
-
-      await esbuild.build({
-        entryPoints: [lambdasEsBuildCommand.entryPoint],
-        bundle: true,
-        platform: 'node',
-        keepNames: true,
-        outfile: newOutfile,
-      });
-      */
-
       console.log('************ BUNDING END ************');
     }
-
-    const list = await Promise.all(
-      lambdas.map(async (lambda) => {
-        // handler slit into file and file name
-        const handlerSplit = lambda.handler.split('.');
-
-        const handler = handlerSplit.pop();
-        const filename = handlerSplit[0];
-
-        let codePath = lambda.codePath;
-
-        if (!codePath) {
-          const codePathJs = lambda.code?.path
-            ? path.join(lambda.code.path, `${filename}.js`)
-            : undefined;
-          const codePathCjs = lambda.code?.path
-            ? path.join(lambda.code.path, `${filename}.cjs`)
-            : undefined;
-          const codePathMjs = lambda.code?.path
-            ? path.join(lambda.code.path, `${filename}.mjs`)
-            : undefined;
-
-          // get  the first file that exists
-          codePath = [codePathJs, codePathCjs, codePathMjs]
-            .filter((c) => c)
-            .find((file) =>
-              fs
-                .access(file as string)
-                .then(() => true)
-                .catch(() => false),
-            );
-
-          if (!codePath) {
-            throw new Error(
-              `Code file not found for Lambda function ${lambda.code.path}`,
-            );
-          }
-        }
-
-        const packageJsonPath = await findPackageJson(codePath);
-        Logger.verbose(`[CDK] package.json path: ${packageJsonPath}`);
-
-        return {
-          cdkPath: lambda.cdkPath,
-          stackName: lambda.stackName,
-          packageJsonPath,
-          codePath,
-          handler,
-          bundling: lambda.bundling,
-        };
-      }),
-    );
-
-    return list;
   }
 
   /**
@@ -637,7 +346,6 @@ export class CdkFramework implements IFramework {
           awsCdkLibPath,
           projectDirname: getProjectDirname(),
           moduleDirname: getModuleDirname(),
-          subfolder: config.subfolder,
         },
       });
 
@@ -697,19 +405,9 @@ export class CdkFramework implements IFramework {
    * @param config
    * @returns
    */
-  protected async getCdkContext(cdkConfigPath: string, config: LldConfigBase) {
+  protected async getCdkContext(cdkConfigPath: string) {
     // get CDK context from the command line
     // get all "-c" and "--context" arguments from the command line
-    const contextFromLldConfig = config.context?.reduce(
-      (acc: Record<string, string>, arg: string) => {
-        const [key, value] = arg.split('=');
-        if (key && value) {
-          acc[key.trim()] = value.trim();
-        }
-        return acc;
-      },
-      {},
-    );
 
     // get all context from 'cdk.context.json' if it exists
     let contextFromJson = {};
@@ -732,7 +430,7 @@ export class CdkFramework implements IFramework {
       }
     }
 
-    return { ...contextFromJson, ...cdkJson.context, ...contextFromLldConfig };
+    return { ...contextFromJson, ...cdkJson.context };
   }
 
   /**
