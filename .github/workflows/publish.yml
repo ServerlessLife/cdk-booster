@@ -1,3 +1,4 @@
+name: Publish to npm
 run-name: >
   Publishing
   ${{ github.ref_name == 'main' && 'stable' || github.ref_name == 'beta' && 'beta' || github.ref_name == 'alpha' && 'alpha' || 'unknown' }}
