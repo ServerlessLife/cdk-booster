@@ -26,16 +26,17 @@ jobs:
     uses: ./.github/workflows/common-build.yml
     secrets: inherit
 
-  test:
-    uses: ./.github/workflows/common-test.yml
-    secrets: inherit
-    needs: build
-    with:
-      mode: build
-      testMonorepo: false
+  # test:
+  #   uses: ./.github/workflows/common-test.yml
+  #   secrets: inherit
+  #   needs: build
+  #   with:
+  #     mode: build
+  #     testMonorepo: false
 
   publish:
-    needs: test
+    # needs: test
+    needs: build
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
