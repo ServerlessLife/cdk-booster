@@ -16,7 +16,7 @@ import { CdkFramework } from './frameworks/cdkFramework.js';
 async function run() {
   const version = await getVersion();
 
-  Logger.log(`Welcome to CDK Booster 🚀 version ${version}. `);
+  Logger.log(`Welcome to CDK Booster 🚀 version ${version}.`);
 
   await Configuration.readConfig();
 
