@@ -5,6 +5,7 @@ import { Logger } from '../logger.mjs';
 
 Logger.setVerbose(workerData.verbose);
 process.env.CDK_OUTDIR = 'cdk.out';
+process.env.CDK_BOOSTER_INSPECT = 'true';
 
 Logger.verbose(`[CDK] [Worker] Started`);
 

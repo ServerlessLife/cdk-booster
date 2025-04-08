@@ -316,36 +316,46 @@ export class CdkFramework implements IFramework {
               codeToFind,
               codeToFind +
                 `;
-              if (!options.outputDir.startsWith('/asset-output')) {
-                global.lambdas = global.lambdas ?? [];
+              if (process.env.CDK_BOOSTER_INSPECT === 'true') {
+                if (!options.outputDir.startsWith('/asset-output')) {
+                  global.lambdas = global.lambdas ?? [];
 
-                const out = pathJoin(options.outputDir,outFile);
+                  const out = pathJoin(options.outputDir,outFile);
 
-                const lambdaInfo = {
-                  entryPoint: relativeEntryPath,
-                  outfile: out,
-                  inputDir: options.inputDir,
-                  options: options,
-                  props: this.props,
-                  command: command,
-                };
+                  const lambdaInfo = {
+                    entryPoint: relativeEntryPath,
+                    //outfile: out,
+                    //inputDir: options.inputDir,
+                    //options: options,
+                    //props: this.props,
+                    command: command,
+                  };
 
-                global.lambdas.push(lambdaInfo);
+                  global.lambdas.push(lambdaInfo);
 
-                //console.log("****** OUT ***********", out);
-                console.log("****** esbuildCommand ***********", esbuildCommand);
 
-                // replace the esbuild with dummy command
-                esbuildCommand = ["touch", out];
+                  const fs = require('fs');
+                  const path = require('path');
+                  const dir = path.dirname(out);
+                  fs.mkdirSync(dir, { recursive: true });
+                  fs.writeFileSync(out, '');
+                }
+
+                return command;
               }
-
-              return command;
               `,
             );
 
+            // contents = contents.replace(
+            //   'const sourceMapEnabled',
+            //   'let sourceMapEnabled',
+            // );
+
+            const codeToFind3 =
+              'return(0,util_1().exec)(osPlatform==="win32"?"cmd":"bash",[osPlatform==="win32"?"/c":"-c",localCommand],{env:{...process.env,...environment},stdio:["ignore",process.stderr,"inherit"],cwd,windowsVerbatimArguments:osPlatform==="win32"}),!0';
             contents = contents.replace(
-              'const sourceMapEnabled',
-              'let sourceMapEnabled',
+              codeToFind3,
+              `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3.replace('return', '')})`,
             );
 
             // } else if (
@@ -422,6 +432,7 @@ export class CdkFramework implements IFramework {
 
     try {
       // Build CDK code
+
       await esbuild.build({
         entryPoints: [entryFile],
         bundle: true,
@@ -597,9 +608,10 @@ export class CdkFramework implements IFramework {
     awsCdkLibPath: string | undefined;
     compileCodeFile: string;
   }) {
-    process.chdir(getProjectDirname());
-    process.env.CDK_OUTDIR = 'cdk.out';
+    //process.chdir(getProjectDirname());
+    //process.env.CDK_OUTDIR = 'cdk.out';
 
+    /*
     await import(pathToFileURL(compileCodeFile).href);
 
     const lambdas = (global as any).lambdas;
@@ -610,7 +622,8 @@ export class CdkFramework implements IFramework {
     );
 
     return lambdas;
-    /*
+    */
+
     const lambdas: any[] = await new Promise((resolve, reject) => {
       const workerPath = pathToFileURL(
         path.resolve(
@@ -676,7 +689,6 @@ export class CdkFramework implements IFramework {
       packageJsonPath: string;
       bundling: BundlingOptions;
     }[];
-    */
   }
 
   /**
