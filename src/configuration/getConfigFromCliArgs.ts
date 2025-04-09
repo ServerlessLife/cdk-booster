@@ -14,6 +14,7 @@ export async function getConfigFromCliArgs(): Promise<LldConfigCliArgs> {
 
   program.name('lld').description('CDK Booster').version(version);
   program.option('-v, --verbose', 'Verbose logging');
+  program.arguments('<string>');
 
   program.parse(process.argv);
 
