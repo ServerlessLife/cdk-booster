@@ -212,7 +212,7 @@ export class CdkFramework {
       },
     };
 
-    const compileOutput = path.join(
+    const compileCodeFile = path.join(
       getProjectDirname(),
       outputFolder,
       `compiledCdk.${isESM ? 'mjs' : 'cjs'}`,
@@ -226,7 +226,7 @@ export class CdkFramework {
         bundle: true,
         platform: 'node',
         keepNames: true,
-        outfile: compileOutput,
+        outfile: compileCodeFile,
         sourcemap: false,
         plugins: [injectCodePlugin],
         ...(isESM
@@ -278,7 +278,7 @@ export class CdkFramework {
     const lambdas = await this.runCdkCodeAndReturnLambdas({
       config,
       awsCdkLibPath,
-      compileCodeFile: compileOutput,
+      compileCodeFile,
     });
 
     const lambdasEsBuildCommands = lambdas as any as Array<{
@@ -303,7 +303,7 @@ export class CdkFramework {
     }
 
     // regular import
-    await import(pathToFileURL(compileOutput).href);
+    await import(pathToFileURL(compileCodeFile).href);
   }
 
   /**
