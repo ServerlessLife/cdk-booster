@@ -301,6 +301,9 @@ export class CdkFramework {
       await execAsync(command);
       console.log('************ BUNDING END ************');
     }
+
+    // regular import
+    await import(pathToFileURL(compileOutput).href);
   }
 
   /**
