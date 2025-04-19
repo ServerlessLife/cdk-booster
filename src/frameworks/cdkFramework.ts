@@ -287,20 +287,23 @@ export class CdkFramework {
       command: string;
       //inputDir: string;
     }>;
+    await Promise.all(
+      lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
+        console.log(
+          `************ BUNDLING ${lambdasEsBuildCommand.entryPoint} ****************`,
+        );
 
-    for (const lambdasEsBuildCommand of lambdasEsBuildCommands) {
-      console.log(
-        `************ BUNDING ${lambdasEsBuildCommand.entryPoint} ****************`,
-      );
+        let command = lambdasEsBuildCommand.command;
 
-      let command = lambdasEsBuildCommand.command;
+        console.log(command);
 
-      console.log(command);
-
-      command = command.replaceAll('-building', '');
-      await execAsync(command);
-      console.log('************ BUNDING END ************');
-    }
+        command = command.replaceAll('-building', '');
+        await execAsync(command);
+        console.log(
+          `************ BUNDLING END ${lambdasEsBuildCommand.entryPoint} ************`,
+        );
+      }),
+    );
 
     // regular import
     await import(pathToFileURL(compileCodeFile).href);
