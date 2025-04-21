@@ -14,11 +14,19 @@ export async function getConfigFromCliArgs(): Promise<LldConfigCliArgs> {
 
   program.name('lld').description('CDK Booster').version(version);
   program.option('-v, --verbose', 'Verbose logging');
+  program.option('-p, --parallel', 'Number of parallel processes for bundling');
   program.arguments('<string>');
 
   program.parse(process.argv);
 
   const args: any = program.opts();
+
+  const entryFile = program.args[0];
+  if (!entryFile) {
+    program.outputHelp();
+    throw new Error('Entry file is required');
+  }
+  args.entryFile = entryFile;
 
   return args;
 }

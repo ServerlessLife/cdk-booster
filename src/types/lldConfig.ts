@@ -4,6 +4,9 @@ export type LldConfigBase = {
    * @default false
    */
   verbose?: boolean;
+  parallel?: number;
+
+  entryFile: string;
 };
 export type LldConfigCliArgs = {} & LldConfigBase;
 

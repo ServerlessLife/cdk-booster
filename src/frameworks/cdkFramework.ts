@@ -8,10 +8,10 @@ import { LldConfigBase } from '../types/lldConfig.js';
 import { Logger } from '../logger.js';
 import { Worker } from 'node:worker_threads';
 import { getModuleDirname, getProjectDirname } from '../getDirname.js';
-import { findNpmPath } from '../utils/findNpmPath.js';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import pLimit from 'p-limit';
 
 const execAsync = promisify(exec);
 
@@ -25,13 +25,8 @@ export class CdkFramework {
    * @returns Lambda functions
    */
   public async prebuild(config: LldConfigBase) {
-    const cdkConfigPath = 'cdk.json';
-    // read cdk.json and extract the entry file
-
-    const lambdasInCdk = await this.getLambdasDataFromCdkByCompilingAndRunning(
-      cdkConfigPath,
-      config,
-    );
+    const lambdasInCdk =
+      await this.getLambdasDataFromCdkByCompilingAndRunning(config);
     Logger.verbose(
       `[CDK] Found Lambda functions:`,
       JSON.stringify(lambdasInCdk, null, 2),
@@ -45,12 +40,10 @@ export class CdkFramework {
    * @returns
    */
   protected async getLambdasDataFromCdkByCompilingAndRunning(
-    cdkConfigPath: string,
     config: LldConfigBase,
   ) {
-    const entryFile = await this.getCdkEntryFile(cdkConfigPath);
     let isESM = false;
-    const packageJsonPath = await findPackageJson(entryFile);
+    const packageJsonPath = await findPackageJson(config.entryFile);
 
     if (packageJsonPath) {
       try {
@@ -167,9 +160,8 @@ export class CdkFramework {
                   fs.mkdirSync(dir, { recursive: true });
                   fs.writeFileSync(out, '');
                 }
-
-                return command;
               }
+              return command;
               `,
             );
 
@@ -222,7 +214,7 @@ export class CdkFramework {
       // Build CDK code
 
       await esbuild.build({
-        entryPoints: [entryFile],
+        entryPoints: [config.entryFile],
         bundle: true,
         platform: 'node',
         keepNames: true,
@@ -262,22 +254,8 @@ export class CdkFramework {
       });
     }
 
-    const context = await this.getCdkContext(cdkConfigPath);
-
-    const CDK_CONTEXT_JSON = {
-      ...context,
-      // prevent compiling assets
-      //'aws:cdk:bundling-stacks': [],
-    };
-    process.env.CDK_CONTEXT_JSON = JSON.stringify(CDK_CONTEXT_JSON);
-    Logger.verbose(`[CDK] Context:`, JSON.stringify(CDK_CONTEXT_JSON, null, 2));
-
-    const awsCdkLibPath = await findNpmPath(getProjectDirname(), 'aws-cdk-lib');
-    Logger.verbose(`[CDK] aws-cdk-lib path: ${awsCdkLibPath}`);
-
     const lambdas = await this.runCdkCodeAndReturnLambdas({
       config,
-      awsCdkLibPath,
       compileCodeFile,
     });
 
@@ -287,22 +265,33 @@ export class CdkFramework {
       command: string;
       //inputDir: string;
     }>;
+
+    const parallel = config.parallel ?? 5;
+
+    const limit = pLimit(parallel);
+
     await Promise.all(
-      lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
-        console.log(
-          `************ BUNDLING ${lambdasEsBuildCommand.entryPoint} ****************`,
-        );
+      lambdasEsBuildCommands.map((lambdasEsBuildCommand) =>
+        limit(async () => {
+          console.log(
+            `************ BUNDLING ${lambdasEsBuildCommand.entryPoint} ****************`,
+          );
 
-        let command = lambdasEsBuildCommand.command;
-
-        console.log(command);
-
-        command = command.replaceAll('-building', '');
-        await execAsync(command);
-        console.log(
-          `************ BUNDLING END ${lambdasEsBuildCommand.entryPoint} ************`,
-        );
-      }),
+          try {
+            let command = lambdasEsBuildCommand.command;
+            console.log(command);
+            command = command.replaceAll('-building', '');
+            await execAsync(command);
+            console.log(
+              `************ BUNDLING END ${lambdasEsBuildCommand.entryPoint} ************`,
+            );
+          } catch (error: any) {
+            console.error(
+              `Error running command "${lambdasEsBuildCommand.command}": ${error.message}`,
+            );
+          }
+        }),
+      ),
     );
 
     // regular import
@@ -316,11 +305,9 @@ export class CdkFramework {
    */
   protected async runCdkCodeAndReturnLambdas({
     config,
-    awsCdkLibPath,
     compileCodeFile,
   }: {
     config: LldConfigBase;
-    awsCdkLibPath: string | undefined;
     compileCodeFile: string;
   }) {
     //process.chdir(getProjectDirname());
@@ -349,7 +336,6 @@ export class CdkFramework {
       const worker = new Worker(new URL(workerPath), {
         workerData: {
           verbose: config.verbose,
-          awsCdkLibPath,
           projectDirname: getProjectDirname(),
           moduleDirname: getModuleDirname(),
         },
@@ -403,65 +389,6 @@ export class CdkFramework {
       packageJsonPath: string;
       bundling: BundlingOptions;
     }[];
-  }
-
-  /**
-   * Get CDK context
-   * @param cdkConfigPath
-   * @param config
-   * @returns
-   */
-  protected async getCdkContext(cdkConfigPath: string) {
-    // get CDK context from the command line
-    // get all "-c" and "--context" arguments from the command line
-
-    // get all context from 'cdk.context.json' if it exists
-    let contextFromJson = {};
-    try {
-      const cdkContextJson = await fs.readFile('cdk.context.json', 'utf8');
-      contextFromJson = JSON.parse(cdkContextJson);
-    } catch (err: any) {
-      if (err.code !== 'ENOENT') {
-        throw new Error(`Error reading cdk.context.json: ${err.message}`);
-      }
-    }
-
-    // get context from cdk.json
-    let cdkJson: { context?: Record<string, string> } = {};
-    try {
-      cdkJson = JSON.parse(await fs.readFile(cdkConfigPath, 'utf8'));
-    } catch (err: any) {
-      if (err.code !== 'ENOENT') {
-        throw new Error(`Error reading cdk.json: ${err.message}`);
-      }
-    }
-
-    return { ...contextFromJson, ...cdkJson.context };
-  }
-
-  /**
-   * Get CDK entry file
-   * @param cdkConfigPath
-   * @returns
-   */
-  async getCdkEntryFile(cdkConfigPath: string) {
-    const cdkJson = await fs.readFile(cdkConfigPath, 'utf8');
-    const cdkConfig = JSON.parse(cdkJson);
-    const entry = cdkConfig.app as string | undefined;
-    // just file that ends with .ts
-    let entryFile = entry
-      ?.split(' ')
-      .find((file: string) => file.endsWith('.ts'))
-      ?.trim();
-
-    if (!entryFile) {
-      throw new Error(`Entry file not found in ${cdkConfigPath}`);
-    }
-
-    entryFile = path.resolve(entryFile);
-    Logger.verbose(`[CDK] Entry file: ${entryFile}`);
-
-    return entryFile;
   }
 }
 

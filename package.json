@@ -57,17 +57,18 @@
     "constructs": "^10.4.2",
     "eslint": "^9.23.0",
     "eslint-config-prettier": "^10.1.1",
+    "globals": "^16.0.0",
     "husky": "^9.1.7",
     "prettier": "^3.5.3",
     "semantic-release": "^24.2.3",
     "tsx": "^4.19.3",
     "typescript-eslint": "^8.28.0",
-    "vitepress": "^1.6.3",
-    "globals": "^16.0.0"
+    "vitepress": "^1.6.3"
   },
   "dependencies": {
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
+    "p-limit": "^6.2.0",
     "typescript": "~5.8.2"
   },
   "peerDependencies": {
@@ -75,7 +76,8 @@
   },
   "bundleDependencies": [
     "chalk",
-    "commander"
+    "commander",
+    "p-limit"
   ],
   "workspaces": [
     "test",
