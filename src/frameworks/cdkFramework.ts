@@ -335,7 +335,7 @@ export class CdkFramework {
     const entryPoints = lambdasEsBuildCommands.map((l) => l.entryPoint);
     const tempFolder = '.cdkbooster/bundle';
 
-    await esbuild.build({
+    const buildingResults = await esbuild.build({
       entryPoints,
       bundle: true,
       target: 'node20',
@@ -343,18 +343,41 @@ export class CdkFramework {
       outdir: tempFolder,
       sourcemap: true,
       external: ['@aws-sdk/*'],
-      entryNames: '[dir]/[name]/index',
+      entryNames: '[dir]/[name]-[hash]/index',
+      metafile: true,
     });
+
+    if (!buildingResults.metafile) {
+      throw new Error('No metafile found after building with esbuild');
+    }
 
     // move files to the output folder
     await Promise.all(
       lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
-        const folder = path.dirname(lambdasEsBuildCommand.entryPoint);
-        // last part of the path
-        const folderParts = folder.split(path.sep);
-        const folderName = folderParts[folderParts.length - 1];
-        const source = path.join(tempFolder, folderName);
-        const target = path.dirname(lambdasEsBuildCommand.out);
+        let esBuildOutput: string | undefined;
+
+        for (const outputFile in buildingResults.metafile.outputs) {
+          const output = buildingResults.metafile.outputs[outputFile];
+          if (
+            output.entryPoint &&
+            lambdasEsBuildCommand.entryPoint.endsWith(output.entryPoint)
+          ) {
+            esBuildOutput = outputFile;
+
+            break;
+          }
+        }
+
+        if (!esBuildOutput) {
+          throw new Error(
+            `No output found for entry point ${lambdasEsBuildCommand.entryPoint}`,
+          );
+        }
+
+        const source = path.dirname(esBuildOutput);
+        const target = path.dirname(
+          lambdasEsBuildCommand.out.replaceAll('-building', ''),
+        );
 
         console.log(`Moving files from ${source} to ${target}...`);
 
