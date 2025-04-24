@@ -9,11 +9,11 @@ import { Logger } from '../logger.js';
 import { Worker } from 'node:worker_threads';
 import { getModuleDirname, getProjectDirname } from '../getDirname.js';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-import pLimit from 'p-limit';
+//import { exec } from 'node:child_process';
+//import { promisify } from 'node:util';
+//import pLimit from 'p-limit';
 
-const execAsync = promisify(exec);
+//const execAsync = promisify(exec);
 
 /**
  * Support for AWS CDK framework
@@ -143,12 +143,31 @@ export class CdkFramework {
                   const out = pathJoin(options.outputDir,outFile);
 
                   const lambdaInfo = {
-                    entryPoint: relativeEntryPath,
                     //outfile: out,
                     //inputDir: options.inputDir,
                     //options: options,
                     //props: this.props,
+                    //outfile,
                     command: command,
+                    entryPoint: relativeEntryPath,
+                    out,
+                    target: this.props.target ?? toTarget(this.props.runtime),
+                    format: this.props.format,
+                    minify: this.props.minify,
+                    sourceMapEnabled: sourceMapValue,
+                    sourcesContent,
+                    externals: this.externals,
+                    loaders,
+                    defines,
+                    logLevel: this.props.logLevel,
+                    keepNames: this.props.keepNames,
+                    relativeTsconfigPath: this.relativeTsconfigPath ? pathJoin(options.inputDir, this.relativeTsconfigPath): undefined,
+                    metafile: this.props.metafile ? pathJoin(options.outputDir, 'index.meta.json') : undefined,
+                    banner: this.props.banner,
+                    footer: this.props.footer,
+                    mainFields: this.props.mainFields,
+                    inject: this.props.inject,
+                    esbuildArgs: this.props.esbuildArgs
                   };
 
                   global.lambdas.push(lambdaInfo);
@@ -260,12 +279,30 @@ export class CdkFramework {
     });
 
     const lambdasEsBuildCommands = lambdas as any as Array<{
-      entryPoint: string;
       outfile: string;
       command: string;
-      //inputDir: string;
+      entryPoint: string;
+      out: string;
+      target: string | undefined;
+      format: string | undefined;
+      minify: string | undefined;
+      sourceMapEnabled: string | undefined;
+      sourcesContent: string | undefined;
+      externals: string | undefined;
+      loaders: string | undefined;
+      defines: string | undefined;
+      logLevel: string | undefined;
+      keepNames: string | undefined;
+      relativeTsconfigPath: string | undefined;
+      metafile: string | undefined;
+      banner: string | undefined;
+      footer: string | undefined;
+      mainFields: string | undefined;
+      inject: string | undefined;
+      esbuildArgs: string | undefined;
     }>;
 
+    /*
     const parallel = config.parallel ?? 5;
 
     const limit = pLimit(parallel);
@@ -292,6 +329,38 @@ export class CdkFramework {
           }
         }),
       ),
+    );
+    */
+
+    const entryPoints = lambdasEsBuildCommands.map((l) => l.entryPoint);
+    const tempFolder = '.cdkbooster/bundle';
+
+    await esbuild.build({
+      entryPoints,
+      bundle: true,
+      target: 'node20',
+      platform: 'node',
+      outdir: tempFolder,
+      sourcemap: true,
+      external: ['@aws-sdk/*'],
+      entryNames: '[dir]/[name]/index',
+    });
+
+    // move files to the output folder
+    await Promise.all(
+      lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
+        const folder = path.dirname(lambdasEsBuildCommand.entryPoint);
+        // last part of the path
+        const folderParts = folder.split(path.sep);
+        const folderName = folderParts[folderParts.length - 1];
+        const source = path.join(tempFolder, folderName);
+        const target = path.dirname(lambdasEsBuildCommand.out);
+
+        console.log(`Moving files from ${source} to ${target}...`);
+
+        // create folder if it doesn't exist
+        await copyFolderRecursive(source, target);
+      }),
     );
 
     // regular import
@@ -393,3 +462,42 @@ export class CdkFramework {
 }
 
 export const cdkFramework = new CdkFramework();
+
+/**
+ * Recursively deletes a folder if it exists.
+ * @param folderPath - Path to the folder to delete
+ */
+async function deleteFolderIfExists(folderPath: string): Promise<void> {
+  try {
+    await fs.rm(folderPath, { recursive: true, force: true });
+  } catch (err) {
+    console.warn(`Warning: Couldn't delete ${folderPath}`, err);
+  }
+}
+
+/**
+ * Recursively copies a folder from source to destination,
+ * deleting the destination folder first.
+ * @param src - The source folder path
+ * @param dest - The destination folder path
+ */
+async function copyFolderRecursive(src: string, dest: string): Promise<void> {
+  // Delete the destination folder if it exists
+  await deleteFolderIfExists(dest);
+
+  // Create destination directory
+  await fs.mkdir(dest, { recursive: true });
+
+  const entries = await fs.readdir(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyFolderRecursive(srcPath, destPath);
+    } else {
+      await fs.copyFile(srcPath, destPath);
+    }
+  }
+}
