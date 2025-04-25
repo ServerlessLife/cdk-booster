@@ -326,7 +326,7 @@ export class CdkFramework {
       allBuildCombinations.map((b) => b.buildOptionsHash),
     );
 
-    const tempFolder = '.cdkbooster/bundle';
+    const tempFolder = path.join(outputFolder, 'bundle');
 
     let outputs: esbuild.Metafile['outputs'] = {};
 
@@ -375,13 +375,14 @@ export class CdkFramework {
           drop: buildOptions.drop,
           pure: buildOptions.pure,
           logOverride: buildOptions.logOverride,
-          outExtension: buildOptions.outExtension,
+          //outExtension: buildOptions.outExtension,
 
           // target: 'node20',
           // sourcemap: true,
           // external: ['@aws-sdk/*'],
           entryNames: '[dir]/[name]-[hash]/index',
           metafile: true,
+          outExtension: { '.js': '.mjs' },
         };
 
         console.log(
