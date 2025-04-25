@@ -9,11 +9,14 @@ import { Logger } from '../logger.js';
 import { Worker } from 'node:worker_threads';
 import { getModuleDirname, getProjectDirname } from '../getDirname.js';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
-//import { exec } from 'node:child_process';
-//import { promisify } from 'node:util';
-//import pLimit from 'p-limit';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import pLimit from 'p-limit';
+import { LambdaBundle } from '../types/lambdaBundle.js';
+import { BundleSettings } from '../types/bundleSettings.js';
+import crypto from 'node:crypto';
 
-//const execAsync = promisify(exec);
+const execAsync = promisify(exec);
 
 /**
  * Support for AWS CDK framework
@@ -154,20 +157,25 @@ export class CdkFramework {
                     target: this.props.target ?? toTarget(this.props.runtime),
                     format: this.props.format,
                     minify: this.props.minify,
-                    sourceMapEnabled: sourceMapValue,
+                    sourcemap: sourceMapValue,
                     sourcesContent,
-                    externals: this.externals,
-                    loaders,
-                    defines,
+                    external: this.externals,
+                    loader: loaders,
+                    define: defines,
                     logLevel: this.props.logLevel,
                     keepNames: this.props.keepNames,
-                    relativeTsconfigPath: this.relativeTsconfigPath ? pathJoin(options.inputDir, this.relativeTsconfigPath): undefined,
-                    metafile: this.props.metafile ? pathJoin(options.outputDir, 'index.meta.json') : undefined,
+                    tsconfig: this.relativeTsconfigPath ? pathJoin(options.inputDir, this.relativeTsconfigPath): undefined,
                     banner: this.props.banner,
                     footer: this.props.footer,
                     mainFields: this.props.mainFields,
                     inject: this.props.inject,
-                    esbuildArgs: this.props.esbuildArgs
+                    alias: this.props.esbuildArgs?.alias,
+                    drop: this.props.esbuildArgs?.drop,
+                    pure: this.props.esbuildArgs?.pure,
+                    logOverride: this.props.esbuildArgs?.logOverride,
+                    outExtension: this.props.esbuildArgs?.outExtension,
+                    commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(options.inputDir, options.outputDir) ?? [], tscCommand]),
+                    commandAfterBundling: chain([...(this.props.nodeModules && this.props.commandHooks?.beforeInstall(options.inputDir, options.outputDir)) ?? [], depsCommand, ...this.props.commandHooks?.afterBundling(options.inputDir, options.outputDir) ?? []])
                   };
 
                   global.lambdas.push(lambdaInfo);
@@ -278,86 +286,144 @@ export class CdkFramework {
       compileCodeFile,
     });
 
-    const lambdasEsBuildCommands = lambdas as any as Array<{
-      outfile: string;
-      command: string;
-      entryPoint: string;
-      out: string;
-      target: string | undefined;
-      format: string | undefined;
-      minify: string | undefined;
-      sourceMapEnabled: string | undefined;
-      sourcesContent: string | undefined;
-      externals: string | undefined;
-      loaders: string | undefined;
-      defines: string | undefined;
-      logLevel: string | undefined;
-      keepNames: string | undefined;
-      relativeTsconfigPath: string | undefined;
-      metafile: string | undefined;
-      banner: string | undefined;
-      footer: string | undefined;
-      mainFields: string | undefined;
-      inject: string | undefined;
-      esbuildArgs: string | undefined;
-    }>;
+    const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
-    /*
-    const parallel = config.parallel ?? 5;
-
-    const limit = pLimit(parallel);
-
-    await Promise.all(
-      lambdasEsBuildCommands.map((lambdasEsBuildCommand) =>
-        limit(async () => {
-          console.log(
-            `************ BUNDLING ${lambdasEsBuildCommand.entryPoint} ****************`,
-          );
-
-          try {
-            let command = lambdasEsBuildCommand.command;
-            console.log(command);
-            command = command.replaceAll('-building', '');
-            await execAsync(command);
-            console.log(
-              `************ BUNDLING END ${lambdasEsBuildCommand.entryPoint} ************`,
-            );
-          } catch (error: any) {
-            console.error(
-              `Error running command "${lambdasEsBuildCommand.command}": ${error.message}`,
-            );
-          }
-        }),
-      ),
+    await this.executeCommands(
+      config,
+      lambdasEsBuildCommands,
+      'commandBeforeBundling',
     );
-    */
 
-    const entryPoints = lambdasEsBuildCommands.map((l) => l.entryPoint);
-    const tempFolder = '.cdkbooster/bundle';
+    const allBuildCombinations: {
+      buildOptions: BundleSettings;
+      entryPoint: string;
+      buildOptionsHash: string;
+    }[] = lambdasEsBuildCommands.map((lambdasEsBuildCommand) => {
+      const copy: Partial<LambdaBundle> = {
+        ...lambdasEsBuildCommand,
+      };
+      delete copy.outfile;
+      delete copy.command;
+      delete copy.entryPoint;
+      delete copy.out;
+      delete copy.commandBeforeBundling;
+      delete copy.commandAfterBundling;
 
-    const buildingResults = await esbuild.build({
-      entryPoints,
-      bundle: true,
-      target: 'node20',
-      platform: 'node',
-      outdir: tempFolder,
-      sourcemap: true,
-      external: ['@aws-sdk/*'],
-      entryNames: '[dir]/[name]-[hash]/index',
-      metafile: true,
+      const buildOptions: BundleSettings = copy;
+      const entryPoint = lambdasEsBuildCommand.entryPoint;
+      const buildOptionsHash = crypto
+        .createHash('sha256')
+        .update(JSON.stringify(buildOptions))
+        .digest('hex');
+      return {
+        buildOptions,
+        entryPoint,
+        buildOptionsHash,
+      };
     });
 
-    if (!buildingResults.metafile) {
-      throw new Error('No metafile found after building with esbuild');
-    }
+    const uniqueBuildhashes = new Set(
+      allBuildCombinations.map((b) => b.buildOptionsHash),
+    );
+
+    const tempFolder = '.cdkbooster/bundle';
+
+    let outputs: esbuild.Metafile['outputs'] = {};
+
+    await Promise.all(
+      Array.from(uniqueBuildhashes).map(async (buildHash) => {
+        const buildCombinations = allBuildCombinations.filter(
+          (b) => b.buildOptionsHash === buildHash,
+        );
+
+        const buildOptions = buildCombinations[0].buildOptions;
+        const entryPoints = buildCombinations
+          .filter((b) => b.buildOptionsHash === buildHash)
+          .map((b) => b.entryPoint);
+
+        const outdir = path.join(
+          outputFolder,
+          'bundled',
+          crypto.createHash('sha256').update(buildHash).digest('hex'),
+        );
+
+        // delete the output folder if it exists
+        await deleteFolderIfExists(outdir);
+
+        const esBuildOpt: esbuild.BuildOptions = {
+          entryPoints,
+          bundle: true,
+          platform: 'node',
+          outdir: tempFolder,
+          //...buildOptions,
+          target: buildOptions.target,
+          format: buildOptions.format,
+          minify: buildOptions.minify,
+          sourcemap: buildOptions.sourcemap,
+          sourcesContent: buildOptions.sourcesContent,
+          external: buildOptions.external,
+          //loader: buildOptions.loader,
+          //define: buildOptions.define,
+          logLevel: buildOptions.logLevel,
+          keepNames: buildOptions.keepNames,
+          tsconfig: buildOptions.tsconfig,
+          banner: buildOptions.banner,
+          footer: buildOptions.footer,
+          mainFields: buildOptions.mainFields,
+          inject: buildOptions.inject,
+          alias: buildOptions.alias,
+          drop: buildOptions.drop,
+          pure: buildOptions.pure,
+          logOverride: buildOptions.logOverride,
+          outExtension: buildOptions.outExtension,
+
+          // target: 'node20',
+          // sourcemap: true,
+          // external: ['@aws-sdk/*'],
+          entryNames: '[dir]/[name]-[hash]/index',
+          metafile: true,
+        };
+
+        console.log(
+          `Boost building \n${entryPoints.join('\n -')} with options:`,
+          JSON.stringify(esBuildOpt, null, 2),
+        );
+
+        const buildingResults = await esbuild.build(esBuildOpt);
+
+        outputs = {
+          ...outputs,
+          ...buildingResults.metafile?.outputs,
+        };
+      }),
+    );
+
+    // const entryPoints = lambdasEsBuildCommands.map((l) => l.entryPoint);
+    // const tempFolder = '.cdkbooster/bundle';
+
+    // const buildingResults = await esbuild.build({
+    //   entryPoints,
+    //   bundle: true,
+    //   target: 'node20',
+    //   platform: 'node',
+    //   outdir: tempFolder,
+    //   sourcemap: true,
+    //   external: ['@aws-sdk/*'],
+    //   entryNames: '[dir]/[name]-[hash]/index',
+    //   metafile: true,
+    // });
+
+    // if (!buildingResults.metafile) {
+    //   throw new Error('No metafile found after building with esbuild');
+    // }
 
     // move files to the output folder
     await Promise.all(
       lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
         let esBuildOutput: string | undefined;
 
-        for (const outputFile in buildingResults.metafile.outputs) {
-          const output = buildingResults.metafile.outputs[outputFile];
+        for (const outputFile in outputs) {
+          const output = outputs[outputFile];
           if (
             output.entryPoint &&
             lambdasEsBuildCommand.entryPoint.endsWith(output.entryPoint)
@@ -386,8 +452,41 @@ export class CdkFramework {
       }),
     );
 
+    await this.executeCommands(
+      config,
+      lambdasEsBuildCommands,
+      'commandAfterBundling',
+    );
+
     // regular import
     await import(pathToFileURL(compileCodeFile).href);
+  }
+
+  private async executeCommands(
+    config: LldConfigBase,
+    lambdasBundle: LambdaBundle[],
+    commandPick: 'commandBeforeBundling' | 'commandAfterBundling',
+  ) {
+    const parallel = config.parallel ?? 5;
+
+    const limit = pLimit(parallel);
+
+    await Promise.all(
+      lambdasBundle
+        .filter((lambdasEsBuildCommand) => lambdasEsBuildCommand[commandPick])
+        .map((lambdasEsBuildCommand) =>
+          limit(async () => {
+            let command = lambdasEsBuildCommand[commandPick]!;
+
+            command = command.replaceAll('-building', '');
+            console.log(
+              `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
+            );
+
+            await execAsync(command);
+          }),
+        ),
+    );
   }
 
   /**
