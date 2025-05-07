@@ -442,14 +442,16 @@ export class CdkFramework {
         }
 
         const source = path.dirname(esBuildOutput);
-        const target = path.dirname(
-          lambdasEsBuildCommand.out.replaceAll('-building', ''),
+        const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
+          '-building',
+          '',
         );
+        const target = path.dirname(entryOutputFilename);
 
         console.log(`Moving files from ${source} to ${target}...`);
 
         // create folder if it doesn't exist
-        await copyFolderRecursive(source, target);
+        await copyFolderRecursive(source, target, entryOutputFilename);
       }),
     );
 
@@ -604,7 +606,11 @@ async function deleteFolderIfExists(folderPath: string): Promise<void> {
  * @param src - The source folder path
  * @param dest - The destination folder path
  */
-async function copyFolderRecursive(src: string, dest: string): Promise<void> {
+async function copyFolderRecursive(
+  src: string,
+  dest: string,
+  entryOutputFilename: string,
+): Promise<void> {
   // Delete the destination folder if it exists
   await deleteFolderIfExists(dest);
 
@@ -614,11 +620,28 @@ async function copyFolderRecursive(src: string, dest: string): Promise<void> {
   const entries = await fs.readdir(src, { withFileTypes: true });
 
   for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+    const srcPath = path.resolve(path.join(src, entry.name));
+    let destPath = path.resolve(path.join(dest, entry.name));
+
+    // fixing mjs & cjs & js extension
+    // if the destPath is the same as the entryOutputFilename, except extension make it the same
+    const destPathWithoutExtension = path.join(
+      path.dirname(destPath),
+      path.basename(destPath, path.extname(destPath)),
+    );
+    const entryOutputFilenameWithoutExtension = path.join(
+      path.dirname(entryOutputFilename),
+      path.basename(entryOutputFilename, path.extname(entryOutputFilename)),
+    );
+    if (
+      destPathWithoutExtension === entryOutputFilenameWithoutExtension &&
+      path.extname(destPath) !== path.extname(entryOutputFilename)
+    ) {
+      destPath = entryOutputFilename;
+    }
 
     if (entry.isDirectory()) {
-      await copyFolderRecursive(srcPath, destPath);
+      await copyFolderRecursive(srcPath, destPath, entryOutputFilename);
     } else {
       await fs.copyFile(srcPath, destPath);
     }
