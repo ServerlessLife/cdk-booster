@@ -288,6 +288,26 @@ export class CdkFramework {
 
     const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
+    const parallel = config.parallel ?? 5;
+    const limit = pLimit(parallel);
+
+    //empty the output folder
+    await Promise.all(
+      lambdasEsBuildCommands.map((lambdasEsBuildCommand) =>
+        limit(async () => {
+          const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
+            '-building',
+            '',
+          );
+          const target = path.dirname(entryOutputFilename);
+
+          await deleteFolderIfExists(target);
+          // create folder
+          await fs.mkdir(target, { recursive: true });
+        }),
+      ),
+    );
+
     await this.executeCommands(
       config,
       lambdasEsBuildCommands,
@@ -611,9 +631,6 @@ async function copyFolderRecursive(
   dest: string,
   entryOutputFilename: string,
 ): Promise<void> {
-  // Delete the destination folder if it exists
-  await deleteFolderIfExists(dest);
-
   // Create destination directory
   await fs.mkdir(dest, { recursive: true });
 
