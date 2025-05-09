@@ -379,7 +379,7 @@ export class CdkFramework {
           target: buildOptions.target,
           format: buildOptions.format,
           minify: buildOptions.minify,
-          sourcemap: buildOptions.sourcemap,
+          sourcemap: true, //buildOptions.sourcemap, TODO FIX THIS
           sourcesContent: buildOptions.sourcesContent,
           external: buildOptions.external,
           //loader: buildOptions.loader,
@@ -403,6 +403,7 @@ export class CdkFramework {
           entryNames: '[dir]/[name]-[hash]/index',
           metafile: true,
           outExtension: { '.js': '.mjs' },
+          //absWorkingDir
         };
 
         console.log(
@@ -447,7 +448,9 @@ export class CdkFramework {
           const output = outputs[outputFile];
           if (
             output.entryPoint &&
-            lambdasEsBuildCommand.entryPoint.endsWith(output.entryPoint)
+            lambdasEsBuildCommand.entryPoint.endsWith(
+              path.resolve(output.entryPoint),
+            )
           ) {
             esBuildOutput = outputFile;
 
@@ -642,19 +645,30 @@ async function copyFolderRecursive(
 
     // fixing mjs & cjs & js extension
     // if the destPath is the same as the entryOutputFilename, except extension make it the same
-    const destPathWithoutExtension = path.join(
-      path.dirname(destPath),
-      path.basename(destPath, path.extname(destPath)),
-    );
+
     const entryOutputFilenameWithoutExtension = path.join(
       path.dirname(entryOutputFilename),
       path.basename(entryOutputFilename, path.extname(entryOutputFilename)),
     );
     if (
-      destPathWithoutExtension === entryOutputFilenameWithoutExtension &&
+      destPath.startsWith(entryOutputFilenameWithoutExtension) &&
       path.extname(destPath) !== path.extname(entryOutputFilename)
     ) {
-      destPath = entryOutputFilename;
+      const sourceExtension = path.extname(srcPath);
+      const destExtension = path.extname(entryOutputFilename);
+      let fixedExtension: string;
+
+      if (sourceExtension.endsWith('.map')) {
+        fixedExtension = `${destExtension}.map`;
+      } else {
+        fixedExtension = destExtension;
+      }
+
+      destPath = `${entryOutputFilenameWithoutExtension}${fixedExtension}`;
+
+      console.log(
+        `Source extension: ${sourceExtension}, dest extension: ${destExtension} Fixing extension ${fixedExtension}, destPath: ${destPath}`,
+      );
     }
 
     if (entry.isDirectory()) {
