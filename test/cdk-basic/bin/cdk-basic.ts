@@ -2,7 +2,7 @@
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { CdkbasicStack } from '../lib/cdk-basic-stack';
-import { CdkbasicStack2 } from '../lib/subfolder/cdk-basic-stack2';
+//import { CdkbasicStack2 } from '../lib/subfolder/cdk-basic-stack2';
 
 // log all environment variables
 //console.log('Environment Variables:', JSON.stringify(process.env, null, 2));
@@ -20,6 +20,6 @@ new CdkbasicStack(app, 'CdkbasicStack', {
   stackName: `${environment}-cdkbooster-test-basic`,
 });
 
-new CdkbasicStack2(app, 'CdkbasicStack2', {
-  stackName: `${environment}-cdkbooster-test-basic2`,
-});
+// new CdkbasicStack2(app, 'CdkbasicStack2', {
+//   stackName: `${environment}-cdkbooster-test-basic2`,
+// });

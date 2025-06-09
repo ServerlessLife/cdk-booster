@@ -15,6 +15,10 @@ import pLimit from 'p-limit';
 import { LambdaBundle } from '../types/lambdaBundle.js';
 import { BundleSettings } from '../types/bundleSettings.js';
 import crypto from 'node:crypto';
+import { createRequire } from 'module';
+import { dirname, resolve } from 'path';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 
 const execAsync = promisify(exec);
 
@@ -28,6 +32,8 @@ export class CdkFramework {
    * @returns Lambda functions
    */
   public async prebuild(config: LldConfigBase) {
+    await deleteFolderIfExists(path.resolve('cdk.out'));
+
     const lambdasInCdk =
       await this.getLambdasDataFromCdkByCompilingAndRunning(config);
     Logger.verbose(
@@ -346,9 +352,13 @@ export class CdkFramework {
       allBuildCombinations.map((b) => b.buildOptionsHash),
     );
 
-    const tempFolder = path.join(outputFolder, 'bundle');
+    const tempFolder = path.resolve(path.join(outputFolder, 'bundle'));
 
     let outputs: esbuild.Metafile['outputs'] = {};
+
+    const rootFolder = path.resolve(getModuleRoot('aws-cdk'), '../../');
+
+    console.log(`[CDK] Root folder: ${rootFolder}`);
 
     await Promise.all(
       Array.from(uniqueBuildhashes).map(async (buildHash) => {
@@ -361,14 +371,14 @@ export class CdkFramework {
           .filter((b) => b.buildOptionsHash === buildHash)
           .map((b) => b.entryPoint);
 
-        const outdir = path.join(
-          outputFolder,
-          'bundled',
-          crypto.createHash('sha256').update(buildHash).digest('hex'),
-        );
+        // const outdir = path.join(
+        //   outputFolder,
+        //   'bundled',
+        //   crypto.createHash('sha256').update(buildHash).digest('hex'),
+        // );
 
-        // delete the output folder if it exists
-        await deleteFolderIfExists(outdir);
+        // // delete the output folder if it exists
+        // await deleteFolderIfExists(outdir);
 
         const esBuildOpt: esbuild.BuildOptions = {
           entryPoints,
@@ -379,7 +389,8 @@ export class CdkFramework {
           target: buildOptions.target,
           format: buildOptions.format,
           minify: buildOptions.minify,
-          sourcemap: true, //buildOptions.sourcemap, TODO FIX THIS
+          //sourcemap: true, //buildOptions.sourcemap, TODO FIX THIS
+          sourcemap: buildOptions.sourcemap,
           sourcesContent: buildOptions.sourcesContent,
           external: buildOptions.external,
           //loader: buildOptions.loader,
@@ -403,7 +414,8 @@ export class CdkFramework {
           entryNames: '[dir]/[name]-[hash]/index',
           metafile: true,
           outExtension: { '.js': '.mjs' },
-          //absWorkingDir
+          absWorkingDir: path.resolve('../../'),
+          //absWorkingDir: cdkModulePath,
         };
 
         console.log(
@@ -446,11 +458,15 @@ export class CdkFramework {
 
         for (const outputFile in outputs) {
           const output = outputs[outputFile];
+
+          const entryPoint = output.entryPoint
+            ? path.resolve(output.entryPoint)
+            : undefined;
+
           if (
-            output.entryPoint &&
-            lambdasEsBuildCommand.entryPoint.endsWith(
-              path.resolve(output.entryPoint),
-            )
+            entryPoint &&
+            (lambdasEsBuildCommand.entryPoint.endsWith(entryPoint) ||
+              lambdasEsBuildCommand.entryPoint.endsWith(output.entryPoint!))
           ) {
             esBuildOutput = outputFile;
 
@@ -464,7 +480,9 @@ export class CdkFramework {
           );
         }
 
-        const source = path.dirname(esBuildOutput);
+        const source = path.dirname(
+          path.resolve(path.join(rootFolder, esBuildOutput)),
+        );
         const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
           '-building',
           '',
@@ -617,6 +635,8 @@ export const cdkFramework = new CdkFramework();
  */
 async function deleteFolderIfExists(folderPath: string): Promise<void> {
   try {
+    console.log(`Deleting folder: ${folderPath}`);
+
     await fs.rm(folderPath, { recursive: true, force: true });
   } catch (err) {
     console.warn(`Warning: Couldn't delete ${folderPath}`, err);
@@ -677,4 +697,30 @@ async function copyFolderRecursive(
       await fs.copyFile(srcPath, destPath);
     }
   }
+}
+
+export function getModuleRoot(moduleName: string): string {
+  const require = createRequire(import.meta.url);
+  const modulePath = require.resolve(moduleName);
+  let dir = dirname(modulePath);
+
+  while (!existsSync(resolve(dir, 'package.json'))) {
+    const parent = dirname(dir);
+    if (parent === dir) break; // Reached filesystem root
+    dir = parent;
+  }
+
+  return dir;
+}
+
+export function getProjectRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+
+  while (!existsSync(resolve(dir, 'package.json'))) {
+    const parent = dirname(dir);
+    if (parent === dir) break; // Reached filesystem root
+    dir = parent;
+  }
+
+  return dir;
 }
