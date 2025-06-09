@@ -356,9 +356,9 @@ export class CdkFramework {
 
     let outputs: esbuild.Metafile['outputs'] = {};
 
-    const rootFolder = path.resolve(getModuleRoot('aws-cdk'), '../../');
+    // const rootFolder = path.resolve(getModuleRoot('aws-cdk'), '../../');
 
-    console.log(`[CDK] Root folder: ${rootFolder}`);
+    // console.log(`[CDK] Root folder: ${rootFolder}`);
 
     await Promise.all(
       Array.from(uniqueBuildhashes).map(async (buildHash) => {
@@ -414,8 +414,8 @@ export class CdkFramework {
           entryNames: '[dir]/[name]-[hash]/index',
           metafile: true,
           outExtension: { '.js': '.mjs' },
-          absWorkingDir: path.resolve('../../'),
-          //absWorkingDir: cdkModulePath,
+          //absWorkingDir: path.resolve('../../'),
+          //absWorkingDir: rootFolder,
         };
 
         console.log(
@@ -480,9 +480,10 @@ export class CdkFramework {
           );
         }
 
-        const source = path.dirname(
-          path.resolve(path.join(rootFolder, esBuildOutput)),
-        );
+        // const source = path.dirname(
+        //   path.resolve(path.join(rootFolder, esBuildOutput)),
+        // );
+        const source = path.dirname(path.resolve(esBuildOutput));
         const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
           '-building',
           '',
