@@ -267,8 +267,6 @@ async function main() {
 }
 
 // Execute main function only when script is run directly
-if (require.main === module) {
-  main().catch(console.error);
-}
+main().catch(console.error);
 
 export { compareCdkStates, ComparisonResults, FunctionComparison };
