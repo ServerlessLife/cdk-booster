@@ -9,17 +9,17 @@ import { CdkbasicStack2 } from '../lib/subfolder/cdk-basic-stack2';
 
 const app = new cdk.App();
 
-let environment = app.node.tryGetContext('environment');
+const environment = app.node.tryGetContext('environment');
 
 if (!environment) {
-  //throw new Error('Environment is not set in the context');
-  environment = 'test';
+  throw new Error('Environment is not set in the context');
+  //environment = 'test';
 }
 
 new CdkbasicStack(app, 'CdkbasicStack', {
-  stackName: `${environment}-cdkbooster-test-basic`,
+  stackName: `${environment}-cdkbooster-cdk-basic`,
 });
 
 new CdkbasicStack2(app, 'CdkbasicStack2', {
-  stackName: `${environment}-cdkbooster-test-basic2`,
+  stackName: `${environment}-cdkbooster-cdk-basic2`,
 });

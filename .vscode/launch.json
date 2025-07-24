@@ -28,26 +28,6 @@
       "console": "integratedTerminal",
       "type": "node",
       "cwd": "${workspaceRoot}/test"
-    },
-    {
-      "name": "cdkbooster - CDK ESM",
-      "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
-      "args": ["../../src/cdkbooster.ts", "-c environment=test"],
-      "request": "launch",
-      "skipFiles": ["<node_internals>/**"],
-      "console": "integratedTerminal",
-      "type": "node",
-      "cwd": "${workspaceRoot}/test/cdk-esm"
-    },
-    {
-      "name": "cdkbooster - CDK config",
-      "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
-      "args": ["../../src/cdkbooster.ts", "-w"],
-      "request": "launch",
-      "skipFiles": ["<node_internals>/**"],
-      "console": "integratedTerminal",
-      "type": "node",
-      "cwd": "${workspaceRoot}/test/cdk-config"
     }
   ]
 }

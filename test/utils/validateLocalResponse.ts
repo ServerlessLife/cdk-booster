@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { setTimeout } from 'timers/promises';
 
-export async function validateLocalResponse(
+export async function validateResponse(
   lambdaName: any,
   payload: { lambdaName: any; timestamp: string },
 ) {

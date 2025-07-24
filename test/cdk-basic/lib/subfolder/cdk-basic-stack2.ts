@@ -26,45 +26,28 @@ export class CdkbasicStack2 extends cdk.Stack {
         entry: path.join(__dirname, '../../services/testJsEsModule/lambda.js'),
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
+        logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
           format: lambda_nodejs.OutputFormat.ESM,
+          commandHooks: {
+            beforeBundling(): string[] {
+              return [];
+            },
+            beforeInstall(): string[] {
+              return [];
+            },
+            afterBundling(inputDir: string, outputDir: string): string[] {
+              return [
+                `cp ${path.join(inputDir, 'test/cdk-basic/services/test.txt')} ${outputDir}`,
+              ];
+            },
+          },
         },
-        logRetention: log.RetentionDays.ONE_DAY,
-      },
-    );
-
-    const functionTestJsCommonJsBase = new lambda.Function(
-      this,
-      'TestJsCommonJsBase',
-      {
-        runtime: lambda.Runtime.NODEJS_22_X,
-        handler: 'lambda.lambdaHandler',
-        code: lambda.Code.fromAsset('services/testJsCommonJs'),
-        logRetention: log.RetentionDays.ONE_DAY,
-      },
-    );
-
-    const functionTestJsEsModuleBase = new lambda.Function(
-      this,
-      'TestJsEsModuleBase',
-      {
-        runtime: lambda.Runtime.NODEJS_22_X,
-        handler: 'lambda.lambdaHandler',
-        code: lambda.Code.fromAsset('services/testJsEsModule'),
-        logRetention: log.RetentionDays.ONE_DAY,
       },
     );
 
     new cdk.CfnOutput(this, 'FunctionNameTestJsEsModule', {
       value: functionTestJsEsModule.functionName,
-    });
-
-    new cdk.CfnOutput(this, 'FunctionNameTestJsCommonJsBase', {
-      value: functionTestJsCommonJsBase.functionName,
-    });
-
-    new cdk.CfnOutput(this, 'FunctionNameTestJsEsModuleBase', {
-      value: functionTestJsEsModuleBase.functionName,
     });
   }
 }

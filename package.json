@@ -40,9 +40,8 @@
     "build": "tsc -p tsconfig.build.json && cp src/frameworks/cdkFrameworkWorker.mjs dist/frameworks && node fix-imports.js && npm run add-bang",
     "deploy-github-role": "aws cloudformation deploy --stack-name lld-deploy-role --template-file cloudformation/gitHubDeployRole.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --profile cdkbooster",
     "deploy-tests": "npm run deploy --workspaces --if-present --parallel",
-    "test": "npm run build && RUN_TEST_FROM_CLI=true vitest run && RUN_TEST_FROM_CLI=true OBSERVABLE_MODE=true vitest run",
-    "test-cdk-basic": "npm run build && RUN_TEST_FROM_CLI=true vitest run test/cdk-basic.test.ts",
-    "test-cdk-esm": "npm run build && RUN_TEST_FROM_CLI=true vitest run test/cdk-esm.test.ts",
+    "test": "npm run build && vitest run",
+    "test-cdk-basic": "npm run build && vitest run test/cdk-basic.test.ts",
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
     "docs:preview": "vitepress preview"

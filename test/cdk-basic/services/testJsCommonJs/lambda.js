@@ -1,42 +1,40 @@
 const { STSClient, GetCallerIdentityCommand } = require('@aws-sdk/client-sts');
+const { v4: uuidv4 } = require('uuid');
+const fs = require('fs/promises');
 
 const stsClient = new STSClient({});
 
-const lambdaHandler = async (event, context) => {
-  console.log('TEST');
-
-  // Check context
-  const remainingTime = context.getRemainingTimeInMillis();
-  if (remainingTime === undefined) {
-    throw new Error('Remaining time is undefined');
-  }
-
-  // check if SDK works
+exports.lambdaHandler = async (event) => {
+  // check SDK works
   const command = new GetCallerIdentityCommand({});
   const identity = await stsClient.send(command);
+
+  // check uuid works
+  const uuid = uuidv4();
+
+  // read all files in current directory
+  const files = await fs.readdir('.');
+
+  const fileReadPromises = files.map(async (file) => {
+    const stats = await fs.stat(file);
+    if (stats.isFile()) {
+      const content = await fs.readFile(file, 'utf8');
+      return [file, content];
+    }
+    return null;
+  });
+
+  const fileResults = await Promise.all(fileReadPromises);
+  const fileContents = Object.fromEntries(
+    fileResults.filter((result) => result !== null),
+  );
 
   const response = {
     inputEvent: event,
     accountId: identity.Account,
-    runningLocally: process.env.IS_LOCAL === 'true',
+    testExternalLib: uuid,
+    allFiles: fileContents,
   };
 
-  if (process.env.IS_LOCAL === 'true') {
-    const fs = require('fs');
-    const path = require('path');
-    const filePath = path.join(
-      '..',
-      'local_lambda_responses',
-      `${context.functionName}.json`,
-    );
-
-    fs.writeFileSync(filePath, JSON.stringify(response, null, 2));
-  }
-
   return response;
-};
-
-// Export the lambda handler if needed, e.g., for unit testing
-module.exports = {
-  lambdaHandler,
 };

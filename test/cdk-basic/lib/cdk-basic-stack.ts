@@ -43,10 +43,23 @@ export class CdkbasicStack extends cdk.Stack {
         entry: 'services/testTsEsModule/lambda.ts',
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
+        logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
           format: lambda_nodejs.OutputFormat.ESM,
+          commandHooks: {
+            beforeBundling(): string[] {
+              return [];
+            },
+            beforeInstall(): string[] {
+              return [];
+            },
+            afterBundling(inputDir: string, outputDir: string): string[] {
+              return [
+                `cp ${path.join(inputDir, 'test/cdk-basic/services/test.txt')} ${outputDir}`,
+              ];
+            },
+          },
         },
-        logRetention: log.RetentionDays.ONE_DAY,
       },
     );
 
@@ -58,6 +71,21 @@ export class CdkbasicStack extends cdk.Stack {
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
         logRetention: log.RetentionDays.ONE_DAY,
+        bundling: {
+          commandHooks: {
+            beforeBundling(inputDir: string, outputDir: string): string[] {
+              return [
+                `cp ${path.join(inputDir, 'test/cdk-basic/services/test.txt')} ${outputDir}`,
+              ];
+            },
+            beforeInstall(): string[] {
+              return [];
+            },
+            afterBundling(): string[] {
+              return [];
+            },
+          },
+        },
       },
     );
 
