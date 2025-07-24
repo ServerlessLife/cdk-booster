@@ -40,11 +40,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
+ * Interface representing the execution result for a Lambda function
+ */
+interface FunctionExecutionResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  statusCode?: number;
+  executedPayload?: any;
+}
+
+/**
  * Interface representing the file list for a single Lambda function
  */
 interface FunctionFilesList {
   functionName: string;
   files: string[];
+  execution: FunctionExecutionResult;
 }
 
 /**
@@ -64,17 +76,32 @@ interface FileComparison {
 }
 
 /**
+ * Interface representing execution comparison result
+ */
+interface ExecutionComparison {
+  matches: boolean;
+  firstSuccess: boolean;
+  secondSuccess: boolean;
+  outputMatches: boolean;
+  statusCodeMatches: boolean;
+  details: string;
+}
+
+/**
  * Interface representing comparison result for a single function
  */
 interface FunctionComparison {
   functionName: string;
   matches: boolean;
+  filesMatch: boolean;
+  executionMatch: boolean;
   originalFiles: string[];
   boosterFiles: string[];
   onlyInOriginal: string[];
   onlyInBooster: string[];
   commonFiles: string[];
   fileDetails: FileComparison[];
+  executionComparison: ExecutionComparison;
 }
 
 /**
@@ -132,6 +159,46 @@ function compareArrays(
 }
 
 /**
+ * Compare execution results between two functions
+ */
+function compareExecutionResults(
+  first: FunctionExecutionResult,
+  second: FunctionExecutionResult,
+): ExecutionComparison {
+  const outputMatches = first.output === second.output;
+  const statusCodeMatches = first.statusCode === second.statusCode;
+  const bothSuccessful = first.success && second.success;
+  const bothFailed = !first.success && !second.success;
+
+  let matches = false;
+  let details = '';
+
+  if (bothSuccessful) {
+    matches = outputMatches && statusCodeMatches;
+    if (matches) {
+      details = 'Both executions successful with identical outputs';
+    } else {
+      details = `Both successful but outputs differ - Output match: ${outputMatches}, Status match: ${statusCodeMatches}`;
+    }
+  } else if (bothFailed) {
+    matches = true; // Both failed, consider as match
+    details = `Both executions failed - First: ${first.error}, Second: ${second.error}`;
+  } else {
+    matches = false;
+    details = `Execution success differs - First: ${first.success ? 'success' : 'failed'}, Second: ${second.success ? 'success' : 'failed'}`;
+  }
+
+  return {
+    matches,
+    firstSuccess: first.success,
+    secondSuccess: second.success,
+    outputMatches,
+    statusCodeMatches,
+    details,
+  };
+}
+
+/**
  * Main comparison function
  */
 function compareCdkStates(
@@ -156,15 +223,15 @@ function compareCdkStates(
   );
 
   // Create maps for easier lookup
-  const firstMap = new Map<string, string[]>();
-  const secondMap = new Map<string, string[]>();
+  const firstMap = new Map<string, FunctionFilesList>();
+  const secondMap = new Map<string, FunctionFilesList>();
 
   firstData.functions.forEach((func) => {
-    firstMap.set(func.functionName, func.files.sort());
+    firstMap.set(func.functionName, func);
   });
 
   secondData.functions.forEach((func) => {
-    secondMap.set(func.functionName, func.files.sort());
+    secondMap.set(func.functionName, func);
   });
 
   // Get all unique function names
@@ -175,28 +242,51 @@ function compareCdkStates(
 
   // Compare each function
   for (const functionName of Array.from(allFunctionNames).sort()) {
-    const firstFiles = firstMap.get(functionName) || [];
-    const secondFiles = secondMap.get(functionName) || [];
+    const firstFunc = firstMap.get(functionName);
+    const secondFunc = secondMap.get(functionName);
+
+    const firstFiles = firstFunc?.files || [];
+    const secondFiles = secondFunc?.files || [];
 
     const { onlyInFirst, onlyInSecond, common, fileDetails } = compareArrays(
       firstFiles,
       secondFiles,
     );
 
-    const matches = onlyInFirst.length === 0 && onlyInSecond.length === 0;
-    if (matches) {
+    const filesMatch = onlyInFirst.length === 0 && onlyInSecond.length === 0;
+
+    // Compare execution results
+    const firstExecution = firstFunc?.execution || {
+      success: false,
+      error: 'Function not found',
+    };
+    const secondExecution = secondFunc?.execution || {
+      success: false,
+      error: 'Function not found',
+    };
+    const executionComparison = compareExecutionResults(
+      firstExecution,
+      secondExecution,
+    );
+
+    const overallMatch = filesMatch && executionComparison.matches;
+
+    if (overallMatch) {
       matchingCount++;
     }
 
     functionComparisons.push({
       functionName,
-      matches,
+      matches: overallMatch,
+      filesMatch,
+      executionMatch: executionComparison.matches,
       originalFiles: firstFiles,
       boosterFiles: secondFiles,
       onlyInOriginal: onlyInFirst,
       onlyInBooster: onlyInSecond,
       commonFiles: common,
       fileDetails,
+      executionComparison,
     });
   }
 
@@ -231,25 +321,32 @@ function printResults(
   // Print details for each function
   for (const func of results.functions) {
     const status = func.matches ? '✅ MATCH' : '❌ MISMATCH';
+    const filesStatus = func.filesMatch ? '✅' : '❌';
+    const executionStatus = func.executionMatch ? '✅' : '❌';
+
     console.log(`${status} ${func.functionName}`);
+    console.log(`  Files ${filesStatus} | Execution ${executionStatus}`);
     console.log(
-      `  First total: ${func.originalFiles.length}, Second total: ${func.boosterFiles.length}, Common: ${func.commonFiles.length}\n`,
+      `  First total: ${func.originalFiles.length}, Second total: ${func.boosterFiles.length}, Common: ${func.commonFiles.length}`,
     );
 
-    // Show individual file status
+    // Show execution comparison details
+    console.log(`  Execution: ${func.executionComparison.details}`);
+
+    // Always show file-by-file comparison for better visibility
     if (func.fileDetails.length > 0) {
       console.log('  File-by-file comparison:');
       func.fileDetails.forEach((file) => {
         let fileStatus = '';
         switch (file.status) {
           case 'match':
-            fileStatus = '  ✅';
+            fileStatus = '    ✅';
             break;
           case 'only-in-first':
-            fileStatus = '  ❌ (only in first)';
+            fileStatus = '    ❌ (only in first)';
             break;
           case 'only-in-second':
-            fileStatus = '  ➕ (only in second)';
+            fileStatus = '    ➕ (only in second)';
             break;
         }
         console.log(`${fileStatus} ${file.fileName}`);
@@ -263,9 +360,19 @@ function printResults(
 
   // Final summary
   if (results.overallMatch) {
-    console.log('🎉 All Lambda functions have identical file structures!');
+    console.log(
+      '🎉 All Lambda functions have identical file structures and execution outputs!',
+    );
   } else {
-    console.log('⚠️  Some Lambda functions have different file structures.');
+    console.log(
+      '⚠️  Some Lambda functions have different file structures or execution outputs.',
+    );
+    console.log(
+      `Files matching: ${results.functions.filter((f) => f.filesMatch).length}/${results.totalFunctions}`,
+    );
+    console.log(
+      `Executions matching: ${results.functions.filter((f) => f.executionMatch).length}/${results.totalFunctions}`,
+    );
   }
 }
 
@@ -312,4 +419,5 @@ export {
   ComparisonResults,
   FunctionComparison,
   FileComparison,
+  ExecutionComparison,
 };

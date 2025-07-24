@@ -52,6 +52,7 @@ import {
   LambdaClient,
   GetFunctionCommand,
   GetFunctionResponse,
+  InvokeCommand,
 } from '@aws-sdk/client-lambda';
 import AdmZip from 'adm-zip';
 
@@ -66,11 +67,23 @@ interface CdkOutputs {
 }
 
 /**
+ * Interface representing the execution result for a Lambda function
+ */
+interface FunctionExecutionResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  statusCode?: number;
+  executedPayload?: any;
+}
+
+/**
  * Interface representing the file list for a single Lambda function
  */
 interface FunctionFilesList {
   functionName: string; // AWS Lambda function name
   files: string[]; // Array of file paths within the function package
+  execution: FunctionExecutionResult; // Execution result
 }
 
 /**
@@ -139,6 +152,8 @@ async function exportLambdaState(
         // Execute the command to get function details
         const response: GetFunctionResponse = await lambdaClient.send(command);
 
+        let files: string[] = [];
+
         // Check if the function has code and a download location
         if (response.Code?.Location) {
           // Download the function code ZIP file from the presigned URL
@@ -150,19 +165,35 @@ async function exportLambdaState(
           const zipEntries = zip.getEntries();
 
           // Get list of all files (excluding directories) and sort them
-          const files = zipEntries
+          files = zipEntries
             .filter((entry) => !entry.isDirectory) // Only include files, not directories
             .map((entry) => entry.entryName) // Extract file paths
             .sort(); // Sort alphabetically for consistent output
 
-          // Add the function's file list to results
-          results.functions.push({
-            functionName,
-            files,
-          });
-
           console.log(`  Found ${files.length} files`);
         }
+
+        // Execute the Lambda function to capture its output
+        console.log(`  Executing function: ${functionName}`);
+        const executionResult = await executeLambdaFunction(
+          lambdaClient,
+          functionName,
+        );
+
+        if (executionResult.success) {
+          console.log(`  ✅ Function executed successfully`);
+        } else {
+          console.log(
+            `  ❌ Function execution failed: ${executionResult.error}`,
+          );
+        }
+
+        // Add the function's file list and execution result to results
+        results.functions.push({
+          functionName,
+          files,
+          execution: executionResult,
+        });
       } catch (error) {
         // Handle errors for individual functions and mark as error
         hasErrors = true;
@@ -172,6 +203,10 @@ async function exportLambdaState(
           files: [
             `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
           ],
+          execution: {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
         });
       }
     }
@@ -204,6 +239,54 @@ async function exportLambdaState(
     // Handle any top-level errors and exit with error code
     console.error('Error:', error);
     process.exit(1);
+  }
+}
+
+/**
+ * Execute a Lambda function with a test payload
+ */
+async function executeLambdaFunction(
+  lambdaClient: LambdaClient,
+  functionName: string,
+): Promise<FunctionExecutionResult> {
+  try {
+    // Default test payload - can be customized based on function requirements
+    const testPayload = {
+      test: true,
+      timestamp: new Date().toISOString(),
+      source: 'cdk-booster-state-export',
+    };
+
+    const invokeCommand = new InvokeCommand({
+      FunctionName: functionName,
+      Payload: JSON.stringify(testPayload),
+      InvocationType: 'RequestResponse', // Synchronous invocation
+    });
+
+    const response = await lambdaClient.send(invokeCommand);
+
+    // Decode the response payload
+    const payload = response.Payload
+      ? new TextDecoder().decode(response.Payload)
+      : '';
+
+    return {
+      success: !response.FunctionError,
+      output: payload,
+      statusCode: response.StatusCode,
+      executedPayload: testPayload,
+      error: response.FunctionError || undefined,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown execution error',
+      executedPayload: {
+        test: true,
+        timestamp: new Date().toISOString(),
+        source: 'cdk-booster-state-export',
+      },
+    };
   }
 }
 
