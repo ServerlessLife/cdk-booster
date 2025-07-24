@@ -24,7 +24,6 @@
  * 2. Parse the JSON content
  * 3. Update the "app" property with the new value
  * 4. Write the modified JSON back to the file with proper formatting
- * 5. Create a backup of the original file (with .backup extension)
  */
 
 import * as fs from 'fs';
@@ -45,14 +44,13 @@ interface ModifyResult {
   originalValue: string;
   newValue: string;
   filePath: string;
-  backupPath: string;
 }
 
 /**
  * Modifies the app property in a cdk.json file
  * @param filePath - Path to the cdk.json file
  * @param newAppValue - New value for the app property
- * @returns Promise with modification result
+ * @returns modification result
  */
 function modifyCdkJson(filePath: string, newAppValue: string): ModifyResult {
   try {
@@ -73,11 +71,6 @@ function modifyCdkJson(filePath: string, newAppValue: string): ModifyResult {
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
-
-    // Create backup of original file
-    const backupPath: string = filePath + '.backup';
-    fs.copyFileSync(filePath, backupPath);
-    console.log(`Backup created: ${backupPath}`);
 
     // Read and parse the cdk.json file
     const fileContent: string = fs.readFileSync(filePath, 'utf8');
@@ -107,21 +100,17 @@ function modifyCdkJson(filePath: string, newAppValue: string): ModifyResult {
     const modifiedContent: string = JSON.stringify(cdkConfig, null, 2);
     fs.writeFileSync(filePath, modifiedContent, 'utf8');
 
-    // Success message
-    console.log('✅ CDK JSON file modified successfully!');
-    console.log(`📁 File: ${filePath}`);
-    console.log(`🔄 Changed app from: "${originalAppValue}"`);
-    console.log(`🎯 Changed app to: "${newAppValue}"`);
+    // Simple success message
+    console.log(`Modified ${filePath}: app = "${newAppValue}"`);
 
     return {
       success: true,
       originalValue: originalAppValue,
       newValue: newAppValue,
       filePath,
-      backupPath,
     };
   } catch (error: any) {
-    console.error('❌ Error modifying cdk.json file:', error.message);
+    console.error(`Error: ${error.message}`);
     process.exit(1);
   }
 }
@@ -156,9 +145,4 @@ function main(): void {
 }
 
 // Run the script if called directly
-if (require.main === module) {
-  main();
-}
-
-// Export function for use as module
-export { modifyCdkJson, CdkConfig, ModifyResult };
+main();
