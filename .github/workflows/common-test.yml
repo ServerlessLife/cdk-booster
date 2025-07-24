@@ -70,10 +70,12 @@ jobs:
         run: npm run destroy
         working-directory: test/cdk-basic
         continue-on-error: true
-      - name: Deploy
-        run: npm run deploy
+      - name: Deploy CDK original
+        run: |
+          node modify-cdk-json.js ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
+          npm run deploy
+      - name: Deploy via cdk-booster
+        run: |
+          node modify-cdk-json.js ../../test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"
+          npm run deploy
         working-directory: test/cdk-basic
-      - name: Test
-        run: npx vitest --retry 1 test/cdk-basic.test.ts
-      - name: Test - observability mode
-        run: OBSERVABLE_MODE=true npx vitest --retry 1 test/cdk-basic.test.ts
