@@ -46,6 +46,16 @@ Resources:
                 Resource:
                   - Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
 
+        - PolicyName: LambdaAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:GetFunction
+                  - lambda:InvokeFunction
+                Resource: '*'
+
         - PolicyName: CDKBootstrapPolicy
           PolicyDocument:
             Version: '2012-10-17'

@@ -75,7 +75,7 @@ jobs:
         working-directory: test/cdk-basic
       - name: Save CDK original state
         run: |
-          npx tsx ../../scripts/list-lambda-files.ts cdk-outputs.json cdk-original-function-files.json
+          npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json
         working-directory: test/cdk-basic
       - name: Deploy via cdk-booster
         run: |
@@ -84,9 +84,9 @@ jobs:
         working-directory: test/cdk-basic
       - name: Save cdk-booster state
         run: |
-          npx tsx ../../scripts/list-lambda-files.ts cdk-outputs.json cdk-booster-function-files.json
+          npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-booster-function-files.json
         working-directory: test/cdk-basic
       - name: Compare CDK original and cdk-booster states
         run: |
-          npx tsx ../../scripts/compare-cdk-states.ts cdk-outputs.json
+          npx tsx ../../scripts/compare-states.ts cdk-original-function-files.json cdk-booster-function-files.json
         working-directory: test/cdk-basic
