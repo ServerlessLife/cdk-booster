@@ -72,10 +72,10 @@ jobs:
         continue-on-error: true
       - name: Deploy CDK original
         run: |
-          node modify-cdk-json.js ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
+          npx tsx modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
           npm run deploy
       - name: Deploy via cdk-booster
         run: |
-          node modify-cdk-json.js ../../test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"
+          npx tsx modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.js"
           npm run deploy
         working-directory: test/cdk-basic
