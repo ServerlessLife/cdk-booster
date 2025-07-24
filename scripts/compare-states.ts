@@ -56,6 +56,14 @@ interface FunctionFilesResults {
 }
 
 /**
+ * Interface representing comparison result for a single file
+ */
+interface FileComparison {
+  fileName: string;
+  status: 'match' | 'only-in-first' | 'only-in-second';
+}
+
+/**
  * Interface representing comparison result for a single function
  */
 interface FunctionComparison {
@@ -66,6 +74,7 @@ interface FunctionComparison {
   onlyInOriginal: string[];
   onlyInBooster: string[];
   commonFiles: string[];
+  fileDetails: FileComparison[];
 }
 
 /**
@@ -80,7 +89,7 @@ interface ComparisonResults {
 }
 
 /**
- * Compare two arrays of strings and return differences
+ * Compare two arrays of strings and return differences with detailed file comparison
  */
 function compareArrays(
   arr1: string[],
@@ -89,6 +98,7 @@ function compareArrays(
   onlyInFirst: string[];
   onlyInSecond: string[];
   common: string[];
+  fileDetails: FileComparison[];
 } {
   const set1 = new Set(arr1);
   const set2 = new Set(arr2);
@@ -97,7 +107,28 @@ function compareArrays(
   const onlyInSecond = arr2.filter((item) => !set1.has(item));
   const common = arr1.filter((item) => set2.has(item));
 
-  return { onlyInFirst, onlyInSecond, common };
+  // Create detailed file comparison
+  const fileDetails: FileComparison[] = [];
+
+  // Add files that are in both
+  common.forEach((file) => {
+    fileDetails.push({ fileName: file, status: 'match' });
+  });
+
+  // Add files only in first
+  onlyInFirst.forEach((file) => {
+    fileDetails.push({ fileName: file, status: 'only-in-first' });
+  });
+
+  // Add files only in second
+  onlyInSecond.forEach((file) => {
+    fileDetails.push({ fileName: file, status: 'only-in-second' });
+  });
+
+  // Sort by filename for consistent output
+  fileDetails.sort((a, b) => a.fileName.localeCompare(b.fileName));
+
+  return { onlyInFirst, onlyInSecond, common, fileDetails };
 }
 
 /**
@@ -147,7 +178,7 @@ function compareCdkStates(
     const firstFiles = firstMap.get(functionName) || [];
     const secondFiles = secondMap.get(functionName) || [];
 
-    const { onlyInFirst, onlyInSecond, common } = compareArrays(
+    const { onlyInFirst, onlyInSecond, common, fileDetails } = compareArrays(
       firstFiles,
       secondFiles,
     );
@@ -165,6 +196,7 @@ function compareCdkStates(
       onlyInOriginal: onlyInFirst,
       onlyInBooster: onlyInSecond,
       commonFiles: common,
+      fileDetails,
     });
   }
 
@@ -200,27 +232,33 @@ function printResults(
   for (const func of results.functions) {
     const status = func.matches ? '✅ MATCH' : '❌ MISMATCH';
     console.log(`${status} ${func.functionName}`);
+    console.log(
+      `  First total: ${func.originalFiles.length}, Second total: ${func.boosterFiles.length}, Common: ${func.commonFiles.length}\n`,
+    );
 
-    if (!func.matches) {
-      if (func.onlyInOriginal.length > 0) {
-        console.log(
-          `  Only in first file (${func.onlyInOriginal.length} files):`,
-        );
-        func.onlyInOriginal.forEach((file) => console.log(`    - ${file}`));
-      }
-
-      if (func.onlyInBooster.length > 0) {
-        console.log(
-          `  Only in second file (${func.onlyInBooster.length} files):`,
-        );
-        func.onlyInBooster.forEach((file) => console.log(`    + ${file}`));
-      }
+    // Show individual file status
+    if (func.fileDetails.length > 0) {
+      console.log('  File-by-file comparison:');
+      func.fileDetails.forEach((file) => {
+        let fileStatus = '';
+        switch (file.status) {
+          case 'match':
+            fileStatus = '  ✅';
+            break;
+          case 'only-in-first':
+            fileStatus = '  ❌ (only in first)';
+            break;
+          case 'only-in-second':
+            fileStatus = '  ➕ (only in second)';
+            break;
+        }
+        console.log(`${fileStatus} ${file.fileName}`);
+      });
+    } else {
+      console.log('  No files found in either deployment');
     }
 
-    console.log(`  Common files: ${func.commonFiles.length}`);
-    console.log(
-      `  First total: ${func.originalFiles.length}, Second total: ${func.boosterFiles.length}\n`,
-    );
+    console.log('');
   }
 
   // Final summary
@@ -269,4 +307,9 @@ async function main() {
 // Execute main function only when script is run directly
 main().catch(console.error);
 
-export { compareCdkStates, ComparisonResults, FunctionComparison };
+export {
+  compareCdkStates,
+  ComparisonResults,
+  FunctionComparison,
+  FileComparison,
+};

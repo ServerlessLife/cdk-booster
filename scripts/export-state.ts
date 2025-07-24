@@ -123,6 +123,9 @@ async function exportLambdaState(
       timestamp: new Date().toISOString(),
     };
 
+    // Track if any errors occurred during processing
+    let hasErrors = false;
+
     // Process each Lambda function to get its file listing
     for (const functionName of functionNames) {
       console.log(`Processing function: ${functionName}`);
@@ -161,7 +164,8 @@ async function exportLambdaState(
           console.log(`  Found ${files.length} files`);
         }
       } catch (error) {
-        // Handle errors for individual functions and continue processing others
+        // Handle errors for individual functions and mark as error
+        hasErrors = true;
         console.error(`Error processing function ${functionName}:`, error);
         results.functions.push({
           functionName,
@@ -188,6 +192,12 @@ async function exportLambdaState(
     // Write the complete results to the specified output file with pretty formatting
     fs.writeFileSync(outputFile, JSON.stringify(results, null, 2));
     console.log(`Results written to: ${outputFile}`);
+
+    // Exit with error code if any function processing failed
+    if (hasErrors) {
+      console.error('Some functions failed to process. Exiting with error code.');
+      process.exit(1);
+    }
   } catch (error) {
     // Handle any top-level errors and exit with error code
     console.error('Error:', error);
