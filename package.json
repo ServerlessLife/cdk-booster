@@ -38,7 +38,7 @@
     "prepare": "husky",
     "add-bang": "echo '#!/usr/bin/env node' | cat - ./dist/cdkbooster.mjs > ./dist/cdkbooster.mjs.tmp && mv ./dist/cdkbooster.mjs.tmp ./dist/cdkbooster.mjs",
     "build": "tsc -p tsconfig.build.json && cp src/frameworks/cdkFrameworkWorker.mjs dist/frameworks && node fix-imports.js && npm run add-bang",
-    "deploy-github-role": "aws cloudformation deploy --stack-name lld-deploy-role --template-file cloudformation/gitHubDeployRole.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --profile cdkbooster",
+    "deploy-github-role": "aws cloudformation deploy --stack-name cdk-booster-deploy-role --template-file cloudformation/gitHubDeployRole.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --profile cdkbooster",
     "deploy-tests": "npm run deploy --workspaces --if-present --parallel",
     "test": "npm run build && vitest run",
     "test-cdk-basic": "npm run build && vitest run test/cdk-basic.test.ts",
