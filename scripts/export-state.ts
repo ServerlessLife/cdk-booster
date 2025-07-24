@@ -195,7 +195,9 @@ async function exportLambdaState(
 
     // Exit with error code if any function processing failed
     if (hasErrors) {
-      console.error('Some functions failed to process. Exiting with error code.');
+      console.error(
+        'Some functions failed to process. Exiting with error code.',
+      );
       process.exit(1);
     }
   } catch (error) {
