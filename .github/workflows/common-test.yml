@@ -64,17 +64,29 @@ jobs:
           aws-region: eu-west-1
           role-to-assume: ${{ secrets.AWS_ROLE }}
           role-session-name: GitHubActions
-      - name: Destroy
-        run: npm run destroy
-        working-directory: test/cdk-basic
-        continue-on-error: true
+      # - name: Destroy
+      #   run: npm run destroy
+      #   working-directory: test/cdk-basic
+      #   continue-on-error: true
       - name: Deploy CDK original
         run: |
-          npx tsx ../../modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
           npm run deploy
+        working-directory: test/cdk-basic
+      - name: Save CDK original state
+        run: |
+          npx tsx ../../scripts/list-lambda-files.ts cdk-outputs.json cdk-original-function-files.json
         working-directory: test/cdk-basic
       - name: Deploy via cdk-booster
         run: |
           npx tsx ../../modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"
           npm run deploy
+        working-directory: test/cdk-basic
+      - name: Save cdk-booster state
+        run: |
+          npx tsx ../../scripts/list-lambda-files.ts cdk-outputs.json cdk-booster-function-files.json
+        working-directory: test/cdk-basic
+      - name: Compare CDK original and cdk-booster states
+        run: |
+          npx tsx ../../scripts/compare-cdk-states.ts cdk-outputs.json
         working-directory: test/cdk-basic

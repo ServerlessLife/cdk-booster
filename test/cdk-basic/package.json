@@ -11,12 +11,14 @@
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.5",
+    "@types/adm-zip": "^0.5.7",
     "@types/aws-lambda": "^8.10.148",
     "@types/node": "22.13.14",
+    "adm-zip": "^0.5.16",
     "aws-cdk": "2.1006.0",
+    "esbuild": "^0.25.2",
     "ts-node": "^10.9.2",
-    "typescript": "~5.8.2",
-    "esbuild": "^0.25.2"
+    "typescript": "~5.8.2"
   },
   "dependencies": {
     "@aws-sdk/client-sts": "^3.775.0",

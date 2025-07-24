@@ -1,0 +1,33 @@
+{
+  "functions": [
+    {
+      "functionName": "test-cdkbooster-cdk-basic2-TestJsEsModule89DD4B8F-vadgVIjRh0oS",
+      "files": [
+        "index.mjs",
+        "test.txt"
+      ]
+    },
+    {
+      "functionName": "test-cdkbooster-cdk-basic-TestJsCommonJs04EDFE09-0A9MNtL88fpI",
+      "files": [
+        "index.js",
+        "test.txt"
+      ]
+    },
+    {
+      "functionName": "test-cdkbooster-cdk-basic-TestTsEsModule5B68B2A8-UotXbxi4auwm",
+      "files": [
+        "index.mjs",
+        "test.txt"
+      ]
+    },
+    {
+      "functionName": "test-cdkbooster-cdk-basic-TestTsCommonJs3F9D6157-QAV2uWMTrqEM",
+      "files": [
+        "index.js",
+        "test.txt"
+      ]
+    }
+  ],
+  "timestamp": "2025-07-24T14:33:41.413Z"
+}
