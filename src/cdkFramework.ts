@@ -208,7 +208,7 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
       );
       const target = path.dirname(entryOutputFilename);
 
-      console.log(`Moving files from ${source} to ${target}...`);
+      Logger.verbose(`Moving files from ${source} to ${target}...`);
 
       // create folder if it doesn't exist
       await copyFolderRecursive(source, target, entryOutputFilename);
@@ -525,12 +525,12 @@ async function executeCommands(
     let command = lambdasEsBuildCommand[commandPick]!;
 
     command = command.replaceAll('-building', '');
-    console.log(
+    Logger.verbose(
       `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
     );
 
     await execAsync(command);
-    console.log(`Command executed successfully: \n${command}`);
+    Logger.verbose(`Command executed successfully: \n${command}`);
   });
   await Promise.all(promises);
 }
@@ -632,11 +632,11 @@ async function runCdkCodeAndReturnLambdas({
  */
 async function deleteFolderIfExists(folderPath: string): Promise<void> {
   try {
-    console.log(`Deleting folder: ${folderPath}`);
+    Logger.verbose(`Deleting folder: ${folderPath}`);
 
     await fs.rm(folderPath, { recursive: true, force: true });
   } catch (err) {
-    console.warn(`Warning: Couldn't delete ${folderPath}`, err);
+    Logger.verbose(`Warning: Couldn't delete ${folderPath}`, err);
   }
 }
 
@@ -678,7 +678,7 @@ async function copyFolderRecursive(
       const fixedExt = srcExt.endsWith('.map') ? `${entryExt}.map` : entryExt;
       destPath = path.join(entryDir, `${entryBasename}${fixedExt}`);
 
-      console.log(
+      Logger.verbose(
         `Fixing extension from ${srcExt} to ${fixedExt}, destPath: ${destPath}`,
       );
     }
