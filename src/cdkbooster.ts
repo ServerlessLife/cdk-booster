@@ -30,7 +30,7 @@ async function run() {
   Logger.verbose(`NPM module folder: ${getModuleDirname()}`);
   Logger.verbose(`Project folder: ${getProjectDirname()}`);
 
-  await new CdkFramework().prebuild(Configuration.config);
+  await CdkFramework.prebuild(Configuration.config);
 }
 
 run().catch(Logger.error);

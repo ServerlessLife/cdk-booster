@@ -99,3 +99,7 @@ jobs:
         run: |
           npx tsx ../../scripts/compare-states.ts cdk-original-function-files.json cdk-booster-function-files.json
         working-directory: test/cdk-basic
+      - name: Another deploy via cdk-booster, because it could fail if repeated
+        run: |
+          npm run deploy
+        working-directory: test/cdk-basic
