@@ -168,7 +168,11 @@ async function run() {
           JSON.stringify(esBuildOpt, null, 2),
         );
       } else {
-        Logger.log(`CDK booster 🚀 is bundling \n${entryPoints.join('\n -')}`);
+        Logger.log(
+          `CDK booster 🚀 is bundling the following entry points:\n${entryPoints
+            .map((ep) => ` - ${ep}`)
+            .join('\n')}`,
+        );
       }
 
       const buildingResults = await esbuild.build(esBuildOpt);
