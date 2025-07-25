@@ -637,7 +637,8 @@ async function runCdkCodeAndReturnLambdas({
     });
 
     // Handle worker exit
-    worker.on('exit', (code) => {
+    worker.on('exit', () => {
+      // (code) => {
       /*
       if (code !== 0) {
          const errorMessage = `CDK worker stopped with exit code ${code}`;
