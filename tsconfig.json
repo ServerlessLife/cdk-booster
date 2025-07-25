@@ -4,6 +4,12 @@
     "checkJs": true,
     "outDir": "./dist"
   },
-  "include": ["src/**/*", "test/**/*", "*.*", ".vitepress/**/*", "scripts/**/*"],
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "*.*",
+    ".vitepress/**/*",
+    "scripts/**/*"
+  ],
   "exclude": ["node_modules", "dist"]
 }

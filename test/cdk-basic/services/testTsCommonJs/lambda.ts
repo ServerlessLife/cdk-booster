@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 const stsClient = new STSClient({});
 
-export const lambdaHandler: Handler = async (event) => {
+export const lambdaHandler: Handler = async () => {
   // check SDK works
   const command = new GetCallerIdentityCommand({});
   const identity = await stsClient.send(command);

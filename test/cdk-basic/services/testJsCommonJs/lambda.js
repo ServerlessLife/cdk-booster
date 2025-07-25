@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const stsClient = new STSClient({});
 
-exports.lambdaHandler = async (event) => {
+exports.lambdaHandler = async () => {
   // check SDK works
   const command = new GetCallerIdentityCommand({});
   const identity = await stsClient.send(command);
