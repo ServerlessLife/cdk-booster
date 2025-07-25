@@ -71,7 +71,7 @@ jobs:
       - name: Deploy CDK original
         run: |
           npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
-          npm run deploy | tee cdk-original.log
+          npm run deploy 2>&1 | tee cdk-original.log
         working-directory: test/cdk-basic
       - name: Check there was bundling
         run: |
@@ -86,7 +86,7 @@ jobs:
       - name: Deploy via cdk-booster
         run: |
           npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"
-          npm run deploy | tee cdk-booster.log
+          npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
       - name: Check there was no bundling
         run: |
