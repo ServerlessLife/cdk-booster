@@ -503,7 +503,7 @@ async function isEsm(entryFile: string) {
       );
       if (packageJson.type === 'module') {
         isESM = true;
-        Logger.verbose(`[CDK] Using ESM format`);
+        Logger.verbose(`Using ESM format`);
       }
     } catch (err: any) {
       Logger.error(
@@ -515,45 +515,75 @@ async function isEsm(entryFile: string) {
   return isESM;
 }
 
+/**
+ * Execute commands for Lambda bundles before or after bundling
+ * @param lambdasBundle - Array of Lambda bundle configurations
+ * @param commandPick - Which command to execute ('commandBeforeBundling' or 'commandAfterBundling')
+ */
 async function executeCommands(
   lambdasBundle: LambdaBundle[],
   commandPick: 'commandBeforeBundling' | 'commandAfterBundling',
 ) {
-  const comandsToExecute = lambdasBundle.filter(
+  // Filter bundles that have the specified command
+  const commandsToExecute = lambdasBundle.filter(
     (lambdasEsBuildCommand) => lambdasEsBuildCommand[commandPick],
   );
 
-  if (comandsToExecute.length === 0) {
-    Logger.verbose(
-      `[CDK] No commands to execute for ${commandPick}, skipping...`,
-    );
+  if (commandsToExecute.length === 0) {
+    Logger.verbose(`No commands to execute for ${commandPick}, skipping...`);
     return;
-  } else {
-    Logger.verbose(
-      `[CDK] Found ${comandsToExecute.length} commands to execute for ${commandPick}: \n${comandsToExecute
-        .map((lambdasEsBuildCommand) => lambdasEsBuildCommand[commandPick])
-        .join('\n')}`,
-    );
   }
 
-  const promises = comandsToExecute.map(async (lambdasEsBuildCommand) => {
-    let command = lambdasEsBuildCommand[commandPick]!;
+  Logger.verbose(
+    `Commands to execute for ${commandPick}: \n${commandsToExecute
+      .map(
+        (lambdasEsBuildCommand) => ` - ${lambdasEsBuildCommand[commandPick]}`,
+      )
+      .join('\n')}`,
+  );
 
-    command = command.replaceAll('-building', '');
-    Logger.verbose(
-      `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
-    );
+  // Execute all commands in parallel
+  const promises = commandsToExecute.map(
+    async (lambdasEsBuildCommand, index) => {
+      let command = lambdasEsBuildCommand[commandPick]!;
 
-    await execAsync(command);
-    Logger.verbose(`Command executed successfully: \n${command}`);
-  });
+      // Remove '-building' suffix from paths in commands
+      command = command.replaceAll('-building', '');
+
+      Logger.verbose(
+        `[${index + 1}/${commandsToExecute.length}] Executing command for ${lambdasEsBuildCommand.entryPoint}: ${command}`,
+      );
+
+      try {
+        const { stdout, stderr } = await execAsync(command);
+
+        if (stdout) {
+          Logger.verbose(`Command stdout: ${stdout}`);
+        }
+        if (stderr) {
+          Logger.verbose(`Command stderr: ${stderr}`);
+        }
+
+        Logger.verbose(`Command executed successfully: ${command}`);
+      } catch (error: any) {
+        throw new Error(
+          `Command execution failed for ${lambdasEsBuildCommand.entryPoint}: ${error.message}`,
+          { cause: error },
+        );
+      }
+    },
+  );
+
   await Promise.all(promises);
+  Logger.log(`All ${commandPick} commands executed successfully`);
 }
 
 /**
- * Run CDK code in a node thread worker and return the Lambda functions
- * @param param0
- * @returns
+ * Run CDK code in a node worker thread and extract Lambda function configurations
+ * This isolates the CDK execution to prevent interference with the main process
+ * @param config - CDK Booster configuration
+ * @param compileCodeFile - Path to the compiled CDK code file
+ * @returns Array of Lambda function configurations found in the CDK code
  */
 async function runCdkCodeAndReturnLambdas({
   config,
@@ -562,26 +592,16 @@ async function runCdkCodeAndReturnLambdas({
   config: CbConfig;
   compileCodeFile: string;
 }) {
-  //process.chdir(getProjectDirname());
-  //process.env.CDK_OUTDIR = 'cdk.out';
-
-  /*
-    await import(pathToFileURL(compileCodeFile).href);
-
-    const lambdas = (global as any).lambdas;
-
-    Logger.verbose(
-      `[CDK] Found the following Lambda functions in the CDK code:`,
-      JSON.stringify(lambdas, null, 2),
-    );
-
-    return lambdas;
-    */
+  Logger.verbose(
+    `Running CDK code in worker thread to extract Lambda configurations...`,
+  );
 
   const lambdas: any[] = await new Promise((resolve, reject) => {
     const workerPath = pathToFileURL(
       path.resolve(path.join(getModuleDirname(), 'cdkFrameworkWorker.mjs')),
     ).href;
+
+    Logger.verbose(`Starting worker thread from: ${workerPath}`);
 
     const worker = new Worker(new URL(workerPath), {
       workerData: {
@@ -591,12 +611,18 @@ async function runCdkCodeAndReturnLambdas({
       },
     });
 
+    // Handle successful completion
     worker.on('message', async (message) => {
+      Logger.verbose(
+        `[CDK Worker] Worker completed successfully, found ${message.length} Lambda functions`,
+      );
       resolve(message);
       await worker.terminate();
     });
 
+    // Handle worker errors
     worker.on('error', (error) => {
+      Logger.error(`[CDK Worker] Error: ${error.message}`, error);
       reject(
         new Error(`Error running CDK code in worker: ${error.message}`, {
           cause: error,
@@ -604,28 +630,36 @@ async function runCdkCodeAndReturnLambdas({
       );
     });
 
+    // Handle worker exit
     worker.on('exit', (code) => {
       if (code !== 0) {
-        reject(new Error(`CDK worker stopped with exit code ${code}`));
+        const errorMessage = `CDK worker stopped with exit code ${code}`;
+        Logger.error(`[CDK Worker]`, `${errorMessage}`);
+        reject(new Error(errorMessage));
+      } else {
+        Logger.verbose(`[CDK Worker] Worker exited successfully`);
       }
     });
 
+    // Forward worker stdout to main process
     worker.stdout.on('data', (data: Buffer) => {
-      Logger.log(`[CDK]`, data.toString());
+      Logger.log(`[CDK Worker]`, data.toString().trim());
     });
 
+    // Forward worker stderr to main process
     worker.stderr.on('data', (data: Buffer) => {
-      Logger.error(`[CDK]`, data.toString());
+      Logger.error(`[CDK Worker]`, data.toString().trim());
     });
 
+    // Send the compiled code file path to the worker
+    Logger.verbose(`Sending compiled code file to worker: ${compileCodeFile}`);
     worker.postMessage({
       compileOutput: compileCodeFile,
     });
   });
 
   Logger.verbose(
-    `[CDK] Found the following Lambda functions in the CDK code:`,
-    JSON.stringify(lambdas, null, 2),
+    `Successfully extracted ${lambdas.length} Lambda function configurations from CDK code`,
   );
 
   return lambdas as {
