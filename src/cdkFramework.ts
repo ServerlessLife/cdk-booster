@@ -29,11 +29,7 @@ const execAsync = promisify(exec);
 async function prebuild(config: CbConfig) {
   //await deleteFolderIfExists(path.resolve('cdk.out'));
 
-  const lambdasInCdk = await getLambdasDataFromCdkByCompilingAndRunning(config);
-  Logger.verbose(
-    `[CDK] Found Lambda functions:`,
-    JSON.stringify(lambdasInCdk, null, 2),
-  );
+  await getLambdasDataFromCdkByCompilingAndRunning(config);
 }
 
 /**
@@ -43,241 +39,12 @@ async function prebuild(config: CbConfig) {
  * @returns
  */
 async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
-  let isESM = false;
-  const packageJsonPath = await findPackageJson(config.entryFile);
-
-  if (packageJsonPath) {
-    try {
-      const packageJson = JSON.parse(
-        await fs.readFile(packageJsonPath, { encoding: 'utf-8' }),
-      );
-      if (packageJson.type === 'module') {
-        isESM = true;
-        Logger.verbose(`[CDK] Using ESM format`);
-      }
-    } catch (err: any) {
-      Logger.error(
-        `Error reading CDK package.json (${packageJsonPath}): ${err.message}`,
-        err,
-      );
-    }
-  }
-
   const rootDir = process.cwd();
 
-  // Plugin that:
-  // - Fixes __dirname issues
-  // - Injects code to get the file path of the Lambda function and CDK hierarchy
-  const injectCodePlugin: esbuild.Plugin = {
-    name: 'injectCode',
-    setup(build: esbuild.PluginBuild) {
-      build.onLoad({ filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
-        // fix __dirname issues
-        const isWindows = /^win/.test(process.platform);
-        const esc = (p: string) => (isWindows ? p.replace(/\\/g, '/') : p);
-
-        const variables = `
-              const __fileloc = {
-                filename: "${esc(args.path)}",
-                dirname: "${esc(path.dirname(args.path))}",
-                relativefilename: "${esc(path.relative(rootDir, args.path))}",
-                relativedirname: "${esc(
-                  path.relative(rootDir, path.dirname(args.path)),
-                )}",
-                import: { meta: { url: "file://${esc(args.path)}" } }
-              };
-            `;
-
-        let fileContent = new TextDecoder().decode(
-          await fs.readFile(args.path),
-        );
-
-        // remove shebang
-        if (fileContent.startsWith('#!')) {
-          const firstNewLine = fileContent.indexOf('\n');
-          fileContent = fileContent.slice(firstNewLine + 1);
-        }
-
-        let contents: string;
-        if (args.path.endsWith('.ts') || args.path.endsWith('.js')) {
-          // add the variables at the top of the file, that contains the file location
-          contents = `${variables}\n${fileContent}`;
-        } else {
-          contents = fileContent;
-        }
-
-        // for .mjs files, use js loader
-        const fileExtension = args.path.split('.').pop();
-        const loader: esbuild.Loader =
-          fileExtension === 'mjs' || fileExtension === 'cjs'
-            ? 'js'
-            : (fileExtension as esbuild.Loader);
-
-        // Inject code to get the file path of the Lambda function and CDK hierarchy
-        if (
-          args.path.includes(
-            path.join('aws-cdk-lib', 'aws-lambda-nodejs', 'lib', 'bundling.'),
-          )
-        ) {
-          contents = contents.replace(
-            'return chain([...this.props.commandHooks',
-            'const command = chain([...this.props.commandHooks',
-          );
-
-          const codeToFind =
-            'afterBundling(options.inputDir,options.outputDir)??[]])';
-
-          if (!contents.includes(codeToFind)) {
-            throw new Error(`Can not find code to inject in ${args.path}`);
-          }
-
-          // Inject code to get the file path of the Lambda function and CDK hierarchy
-          // path to match it with the Lambda function. Store data in the global variable.
-          contents = contents.replace(
-            codeToFind,
-            codeToFind +
-              `;
-              if (process.env.CDK_BOOSTER_INSPECT === 'true') {
-                if (!options.outputDir.startsWith('/asset-output')) {
-                  global.lambdas = global.lambdas ?? [];
-
-                  const out = pathJoin(options.outputDir,outFile);
-
-                  const lambdaInfo = {
-                    //outfile: out,
-                    //inputDir: options.inputDir,
-                    //options: options,
-                    //props: this.props,
-                    //outfile,
-                    command: command,
-                    entryPoint: relativeEntryPath,
-                    out,
-                    target: this.props.target ?? toTarget(this.props.runtime),
-                    format: this.props.format,
-                    minify: this.props.minify,
-                    sourcemap: sourceMapValue,
-                    sourcesContent,
-                    external: this.externals,
-                    loader: loaders,
-                    define: defines,
-                    logLevel: this.props.logLevel,
-                    keepNames: this.props.keepNames,
-                    tsconfig: this.relativeTsconfigPath ? pathJoin(options.inputDir, this.relativeTsconfigPath): undefined,
-                    banner: this.props.banner,
-                    footer: this.props.footer,
-                    mainFields: this.props.mainFields,
-                    inject: this.props.inject,
-                    alias: this.props.esbuildArgs?.alias,
-                    drop: this.props.esbuildArgs?.drop,
-                    pure: this.props.esbuildArgs?.pure,
-                    logOverride: this.props.esbuildArgs?.logOverride,
-                    outExtension: this.props.esbuildArgs?.outExtension,
-                    commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(options.inputDir, options.outputDir) ?? [], tscCommand]),
-                    commandAfterBundling: chain([...(this.props.nodeModules && this.props.commandHooks?.beforeInstall(options.inputDir, options.outputDir)) ?? [], depsCommand, ...this.props.commandHooks?.afterBundling(options.inputDir, options.outputDir) ?? []])
-                  };
-
-                  global.lambdas.push(lambdaInfo);
-
-
-                  const fs = require('fs');
-                  const path = require('path');
-                  const dir = path.dirname(out);
-                  fs.mkdirSync(dir, { recursive: true });
-                  fs.writeFileSync(out, '');
-                }
-              }
-              return command;
-              `,
-          );
-
-          // contents = contents.replace(
-          //   'const sourceMapEnabled',
-          //   'let sourceMapEnabled',
-          // );
-
-          const codeToFind3 =
-            'return(0,util_1().exec)(osPlatform==="win32"?"cmd":"bash",[osPlatform==="win32"?"/c":"-c",localCommand],{env:{...process.env,...environment},stdio:["ignore",process.stderr,"inherit"],cwd,windowsVerbatimArguments:osPlatform==="win32"}),!0';
-          contents = contents.replace(
-            codeToFind3,
-            `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3.replace('return', '')})`,
-          );
-        } else if (
-          args.path.includes(
-            path.join(
-              'aws-cdk-lib',
-              'aws-s3-deployment',
-              'lib',
-              'bucket-deployment.',
-            ),
-          )
-        ) {
-          const codeToFind = 'super(scope,id),this.requestDestinationArn=!1;';
-
-          if (!contents.includes(codeToFind)) {
-            throw new Error(`Can not find code to inject in ${args.path}`);
-          }
-
-          // Inject code to prevent deploying the assets
-          contents = contents.replace(codeToFind, codeToFind + `return;`);
-        }
-
-        return {
-          contents,
-          loader,
-        };
-      });
-    },
-  };
-
-  const compileCodeFile = path.join(
-    getProjectDirname(),
-    outputFolder,
-    `compiledCdk.${isESM ? 'mjs' : 'cjs'}`,
-  );
-
-  try {
-    // Build CDK code
-
-    await esbuild.build({
-      entryPoints: [config.entryFile],
-      bundle: true,
-      platform: 'node',
-      keepNames: true,
-      outfile: compileCodeFile,
-      sourcemap: false,
-      plugins: [injectCodePlugin],
-      ...(isESM
-        ? {
-            format: 'esm',
-            target: 'esnext',
-            mainFields: ['module', 'main'],
-            banner: {
-              js: [
-                `import { createRequire as topLevelCreateRequire } from 'module';`,
-                `global.require = global.require ?? topLevelCreateRequire(import.meta.url);`,
-                `import { fileURLToPath as topLevelFileUrlToPath, URL as topLevelURL } from "url"`,
-                `global.__dirname = global.__dirname ?? topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))`,
-              ].join('\n'),
-            },
-          }
-        : {
-            format: 'cjs',
-            target: 'node18',
-          }),
-      define: {
-        // replace __dirname,... with the a variable that contains the file location
-        __filename: '__fileloc.filename',
-        __dirname: '__fileloc.dirname',
-        __relativefilename: '__fileloc.relativefilename',
-        __relativedirname: '__fileloc.relativedirname',
-        'import.meta.url': '__fileloc.import.meta.url',
-      },
-    });
-  } catch (error: any) {
-    throw new Error(`Error building CDK code: ${error.message}`, {
-      cause: error,
-    });
-  }
+  const compileCodeFile = await compileCdkPhase1({
+    rootDir,
+    entryFile: config.entryFile,
+  });
 
   const lambdas = await runCdkCodeAndReturnLambdas({
     config,
@@ -286,20 +53,7 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
 
   const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
-  //empty the output folder
-  await Promise.all(
-    lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
-      const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
-        '-building',
-        '',
-      );
-      const target = path.dirname(entryOutputFilename);
-
-      await deleteFolderIfExists(target);
-      // create folder
-      await fs.mkdir(target, { recursive: true });
-    }),
-  );
+  await recreateBundlingTempFolders(lambdasEsBuildCommands);
 
   await executeCommands(
     config,
@@ -488,6 +242,277 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
 
   // regular import
   await import(pathToFileURL(compileCodeFile).href);
+}
+
+/**
+ * Recreate bundling-temp-*** folders in the cdk.out folder
+ * @param lambdasEsBuildCommands
+ */
+async function recreateBundlingTempFolders(
+  lambdasEsBuildCommands: LambdaBundle[],
+) {
+  await Promise.all(
+    lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
+      const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
+        '-building',
+        '',
+      );
+      const target = path.dirname(entryOutputFilename);
+
+      await deleteFolderIfExists(target);
+      // create folder
+      await fs.mkdir(target, { recursive: true });
+      Logger.verbose(
+        `Created bundling temp folder: ${target} for ${lambdasEsBuildCommand.entryPoint}`,
+      );
+    }),
+  );
+}
+
+async function compileCdkPhase1({
+  rootDir,
+  entryFile,
+}: {
+  rootDir: string;
+  entryFile: string;
+}) {
+  const isESM = await isEsm(entryFile);
+
+  // Plugin that:
+  // - Fixes __dirname issues
+  // - Injects code to get the file path of the Lambda function and CDK hierarchy
+  const injectCodePlugin: esbuild.Plugin = {
+    name: 'injectCode',
+    setup(build: esbuild.PluginBuild) {
+      build.onLoad({ filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+        // fix __dirname issues
+        const isWindows = /^win/.test(process.platform);
+        const esc = (p: string) => (isWindows ? p.replace(/\\/g, '/') : p);
+
+        const variables = `
+              const __fileloc = {
+                filename: "${esc(args.path)}",
+                dirname: "${esc(path.dirname(args.path))}",
+                relativefilename: "${esc(path.relative(rootDir, args.path))}",
+                relativedirname: "${esc(
+                  path.relative(rootDir, path.dirname(args.path)),
+                )}",
+                import: { meta: { url: "file://${esc(args.path)}" } }
+              };
+            `;
+
+        let fileContent = new TextDecoder().decode(
+          await fs.readFile(args.path),
+        );
+
+        // remove shebang
+        if (fileContent.startsWith('#!')) {
+          const firstNewLine = fileContent.indexOf('\n');
+          fileContent = fileContent.slice(firstNewLine + 1);
+        }
+
+        let contents: string;
+        if (args.path.endsWith('.ts') || args.path.endsWith('.js')) {
+          // add the variables at the top of the file, that contains the file location
+          contents = `${variables}\n${fileContent}`;
+        } else {
+          contents = fileContent;
+        }
+
+        // for .mjs files, use js loader
+        const fileExtension = args.path.split('.').pop();
+        const loader: esbuild.Loader =
+          fileExtension === 'mjs' || fileExtension === 'cjs'
+            ? 'js'
+            : (fileExtension as esbuild.Loader);
+
+        // Inject code to get the file path of the Lambda function and CDK hierarchy
+        if (
+          args.path.includes(
+            path.join('aws-cdk-lib', 'aws-lambda-nodejs', 'lib', 'bundling.'),
+          )
+        ) {
+          contents = contents.replace(
+            'return chain([...this.props.commandHooks',
+            'const command = chain([...this.props.commandHooks',
+          );
+
+          const codeToFind =
+            'afterBundling(options.inputDir,options.outputDir)??[]])';
+
+          if (!contents.includes(codeToFind)) {
+            throw new Error(`Can not find code to inject in ${args.path}`);
+          }
+
+          // Inject code to get the file path of the Lambda function and CDK hierarchy
+          // path to match it with the Lambda function. Store data in the global variable.
+          contents = contents.replace(
+            codeToFind,
+            codeToFind +
+              `;
+              if (process.env.CDK_BOOSTER_INSPECT === 'true') {
+                if (!options.outputDir.startsWith('/asset-output')) {
+                  global.lambdas = global.lambdas ?? [];
+
+                  const out = pathJoin(options.outputDir,outFile);
+
+                  const lambdaInfo = {
+                    //outfile: out,
+                    //inputDir: options.inputDir,
+                    //options: options,
+                    //props: this.props,
+                    //outfile,
+                    command: command,
+                    entryPoint: relativeEntryPath,
+                    out,
+                    target: this.props.target ?? toTarget(this.props.runtime),
+                    format: this.props.format,
+                    minify: this.props.minify,
+                    sourcemap: sourceMapValue,
+                    sourcesContent,
+                    external: this.externals,
+                    loader: loaders,
+                    define: defines,
+                    logLevel: this.props.logLevel,
+                    keepNames: this.props.keepNames,
+                    tsconfig: this.relativeTsconfigPath ? pathJoin(options.inputDir, this.relativeTsconfigPath): undefined,
+                    banner: this.props.banner,
+                    footer: this.props.footer,
+                    mainFields: this.props.mainFields,
+                    inject: this.props.inject,
+                    alias: this.props.esbuildArgs?.alias,
+                    drop: this.props.esbuildArgs?.drop,
+                    pure: this.props.esbuildArgs?.pure,
+                    logOverride: this.props.esbuildArgs?.logOverride,
+                    outExtension: this.props.esbuildArgs?.outExtension,
+                    commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(options.inputDir, options.outputDir) ?? [], tscCommand]),
+                    commandAfterBundling: chain([...(this.props.nodeModules && this.props.commandHooks?.beforeInstall(options.inputDir, options.outputDir)) ?? [], depsCommand, ...this.props.commandHooks?.afterBundling(options.inputDir, options.outputDir) ?? []])
+                  };
+
+                  global.lambdas.push(lambdaInfo);
+
+
+                  const fs = require('fs');
+                  const path = require('path');
+                  const dir = path.dirname(out);
+                  fs.mkdirSync(dir, { recursive: true });
+                  fs.writeFileSync(out, '');
+                }
+              }
+              return command;
+              `,
+          );
+
+          // contents = contents.replace(
+          //   'const sourceMapEnabled',
+          //   'let sourceMapEnabled',
+          // );
+          const codeToFind3 =
+            'return(0,util_1().exec)(osPlatform==="win32"?"cmd":"bash",[osPlatform==="win32"?"/c":"-c",localCommand],{env:{...process.env,...environment},stdio:["ignore",process.stderr,"inherit"],cwd,windowsVerbatimArguments:osPlatform==="win32"}),!0';
+          contents = contents.replace(
+            codeToFind3,
+            `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3.replace('return', '')})`,
+          );
+        } else if (
+          args.path.includes(
+            path.join(
+              'aws-cdk-lib',
+              'aws-s3-deployment',
+              'lib',
+              'bucket-deployment.',
+            ),
+          )
+        ) {
+          const codeToFind = 'super(scope,id),this.requestDestinationArn=!1;';
+
+          if (!contents.includes(codeToFind)) {
+            throw new Error(`Can not find code to inject in ${args.path}`);
+          }
+
+          // Inject code to prevent deploying the assets
+          contents = contents.replace(codeToFind, codeToFind + `return;`);
+        }
+
+        return {
+          contents,
+          loader,
+        };
+      });
+    },
+  };
+
+  const compileCodeFile = path.join(
+    getProjectDirname(),
+    outputFolder,
+    `compiledCdk.${isESM ? 'mjs' : 'cjs'}`,
+  );
+
+  try {
+    // Build CDK code
+    await esbuild.build({
+      entryPoints: [entryFile],
+      bundle: true,
+      platform: 'node',
+      keepNames: true,
+      outfile: compileCodeFile,
+      sourcemap: false,
+      plugins: [injectCodePlugin],
+      ...(isESM
+        ? {
+            format: 'esm',
+            target: 'esnext',
+            mainFields: ['module', 'main'],
+            banner: {
+              js: [
+                `import { createRequire as topLevelCreateRequire } from 'module';`,
+                `global.require = global.require ?? topLevelCreateRequire(import.meta.url);`,
+                `import { fileURLToPath as topLevelFileUrlToPath, URL as topLevelURL } from "url"`,
+                `global.__dirname = global.__dirname ?? topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))`,
+              ].join('\n'),
+            },
+          }
+        : {
+            format: 'cjs',
+            target: 'node18',
+          }),
+      define: {
+        // replace __dirname,... with the a variable that contains the file location
+        __filename: '__fileloc.filename',
+        __dirname: '__fileloc.dirname',
+        __relativefilename: '__fileloc.relativefilename',
+        __relativedirname: '__fileloc.relativedirname',
+        'import.meta.url': '__fileloc.import.meta.url',
+      },
+    });
+  } catch (error: any) {
+    throw new Error(`Error building CDK code: ${error.message}`, {
+      cause: error,
+    });
+  }
+  return compileCodeFile;
+}
+
+async function isEsm(entryFile: string) {
+  let isESM = false;
+  const packageJsonPath = await findPackageJson(entryFile);
+
+  if (packageJsonPath) {
+    try {
+      const packageJson = JSON.parse(
+        await fs.readFile(packageJsonPath, { encoding: 'utf-8' }),
+      );
+      if (packageJson.type === 'module') {
+        isESM = true;
+        Logger.verbose(`[CDK] Using ESM format`);
+      }
+    } catch (err: any) {
+      Logger.error(
+        `Error reading CDK package.json (${packageJsonPath}): ${err.message}`,
+        err,
+      );
+    }
+  }
+  return isESM;
 }
 
 async function executeCommands(
