@@ -1,13 +1,13 @@
 import { Command } from 'commander';
-import { getVersion } from '../version.js';
-import { LldConfigCliArgs } from '../types/lldConfig.js';
+import { getVersion } from './version.js';
+import { CbConfig } from './types/cbConfig.js';
 
 /**
  * Get configuration from CLI arguments
  * @param supportedFrameworks Supported frameworks
  * @returns Configuration
  */
-export async function getConfigFromCliArgs(): Promise<LldConfigCliArgs> {
+export async function getConfigFromCliArgs(): Promise<CbConfig> {
   const version = await getVersion();
 
   const program = new Command();

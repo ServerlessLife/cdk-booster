@@ -2,17 +2,17 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { outputFolder } from '../constants.js';
-import { findPackageJson } from '../utils/findPackageJson.js';
-import { LldConfigBase } from '../types/lldConfig.js';
-import { Logger } from '../logger.js';
+import { outputFolder } from './constants.js';
+import { findPackageJson } from './utils/findPackageJson.js';
+import { CbConfig } from './types/cbConfig.js';
+import { Logger } from './logger.js';
 import { Worker } from 'node:worker_threads';
-import { getModuleDirname, getProjectDirname } from '../getDirname.js';
+import { getModuleDirname, getProjectDirname } from './getDirname.js';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { LambdaBundle } from '../types/lambdaBundle.js';
-import { BundleSettings } from '../types/bundleSettings.js';
+import { LambdaBundle } from './types/lambdaBundle.js';
+import { BundleSettings } from './types/bundleSettings.js';
 import crypto from 'node:crypto';
 import { createRequire } from 'module';
 import { dirname, resolve } from 'path';
@@ -30,7 +30,7 @@ export class CdkFramework {
    * @param config Configuration
    * @returns Lambda functions
    */
-  public async prebuild(config: LldConfigBase) {
+  public async prebuild(config: CbConfig) {
     await deleteFolderIfExists(path.resolve('cdk.out'));
 
     const lambdasInCdk =
@@ -47,9 +47,7 @@ export class CdkFramework {
    * @param config
    * @returns
    */
-  protected async getLambdasDataFromCdkByCompilingAndRunning(
-    config: LldConfigBase,
-  ) {
+  protected async getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
     let isESM = false;
     const packageJsonPath = await findPackageJson(config.entryFile);
 
@@ -502,7 +500,7 @@ export class CdkFramework {
   }
 
   private async executeCommands(
-    config: LldConfigBase,
+    config: CbConfig,
     lambdasBundle: LambdaBundle[],
     commandPick: 'commandBeforeBundling' | 'commandAfterBundling',
   ) {
@@ -531,7 +529,7 @@ export class CdkFramework {
     config,
     compileCodeFile,
   }: {
-    config: LldConfigBase;
+    config: CbConfig;
     compileCodeFile: string;
   }) {
     //process.chdir(getProjectDirname());

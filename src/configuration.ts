@@ -1,9 +1,9 @@
-import { LldConfig } from './types/lldConfig.js';
+import { CbConfig } from './types/cbConfig.js';
 // @ts-ignore // does not have types
-import { getConfigFromCliArgs } from './configuration/getConfigFromCliArgs.js';
+import { getConfigFromCliArgs } from './getConfigFromCliArgs.js';
 import { Logger } from './logger.js';
 
-let config: LldConfig;
+let config: CbConfig;
 
 /**
  * Read configuration from CLI args, config file or wizard
@@ -19,7 +19,7 @@ async function readConfig() {
  * Set the configuration
  * @param newConfig
  */
-function setConfig(newConfig: LldConfig) {
+function setConfig(newConfig: CbConfig) {
   config = newConfig;
 }
 

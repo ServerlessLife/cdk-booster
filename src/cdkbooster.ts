@@ -8,7 +8,7 @@ import { getVersion } from './version.js';
 import { Configuration } from './configuration.js';
 import { Logger } from './logger.js';
 import { getModuleDirname, getProjectDirname } from './getDirname.js';
-import { CdkFramework } from './frameworks/cdkFramework.js';
+import { CdkFramework } from './cdkFramework.js';
 
 /**
  * Start the CDK Booster
