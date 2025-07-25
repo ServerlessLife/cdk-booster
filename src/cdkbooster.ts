@@ -14,28 +14,26 @@ import { CdkFramework } from './cdkFramework.js';
  * Start the CDK Booster
  */
 async function run() {
-  try {
-    const version = await getVersion();
+  const version = await getVersion();
 
-    Logger.log(`Welcome to CDK Booster 🚀 version ${version}.`);
+  Logger.log(`Welcome to CDK Booster 🚀 version ${version}.`);
 
-    await Configuration.readConfig();
+  await Configuration.readConfig();
 
-    Logger.setVerbose(Configuration.config.verbose === true);
+  Logger.setVerbose(Configuration.config.verbose === true);
 
-    Logger.verbose(
-      `Parameters: \n${Object.entries(Configuration.config)
-        .map(([key, value]) => ` - ${key}=${value}`)
-        .join('\n')}`,
-    );
-    Logger.verbose(`NPM module folder: ${getModuleDirname()}`);
-    Logger.verbose(`Project folder: ${getProjectDirname()}`);
+  Logger.verbose(
+    `Parameters: \n${Object.entries(Configuration.config)
+      .map(([key, value]) => ` - ${key}=${value}`)
+      .join('\n')}`,
+  );
+  Logger.verbose(`NPM module folder: ${getModuleDirname()}`);
+  Logger.verbose(`Project folder: ${getProjectDirname()}`);
 
-    await CdkFramework.prebuild(Configuration.config);
-  } catch (error) {
-    Logger.error(error);
-    process.exit(1);
-  }
+  await CdkFramework.prebuild(Configuration.config);
 }
 
-run().catch(Logger.error);
+run().catch((error) => {
+  Logger.error(error);
+  process.exit(1);
+});

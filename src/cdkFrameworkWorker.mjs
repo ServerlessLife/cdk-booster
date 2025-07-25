@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { workerData, parentPort } from 'node:worker_threads';
 import { pathToFileURL } from 'url';
-import { Logger } from '../logger.mjs';
+import { Logger } from './logger.mjs';
 
 Logger.setVerbose(workerData.verbose);
 process.env.CDK_OUTDIR = 'cdk.out';
