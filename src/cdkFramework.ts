@@ -217,6 +217,10 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
 
   await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
 
+  Logger.verbose(
+    `All Lambda functions have been built and copied to the output folder. Starting to run regular CDK code`,
+  );
+
   // regular import
   await import(pathToFileURL(compileCodeFile).href);
 }
@@ -323,6 +327,10 @@ async function compileCdk({
 
           // Inject code to get the file path of the Lambda function and CDK hierarchy
           // path to match it with the Lambda function. Store data in the global variable.
+
+          //NOTE: This handles diferetn versions of CDK. Newer versions use scope
+          // this.props.target ?? (scope ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
+
           contents = contents.replace(
             codeToFind,
             codeToFind +
@@ -342,7 +350,7 @@ async function compileCdk({
                     command: command,
                     entryPoint: relativeEntryPath,
                     out,
-                    target: this.props.target ?? toTarget(this.props.runtime),
+                    target: this.props.target ?? (scope ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
                     format: this.props.format,
                     minify: this.props.minify,
                     sourcemap: sourceMapValue,
