@@ -2,14 +2,35 @@
   "extends": "@tsconfig/node20/tsconfig.json",
   "compilerOptions": {
     "checkJs": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "declaration": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noImplicitThis": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
   },
   "include": [
     "src/**/*",
-    "test/**/*",
-    "*.*",
-    ".vitepress/**/*",
-    "scripts/**/*"
+    "scripts/**/*",
+    "test/**/*"
   ],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    "*.d.ts",
+    "**/*.js",
+    "cdk.out",
+    ".git"
+  ]
 }
