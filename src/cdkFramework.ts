@@ -27,7 +27,7 @@ const execAsync = promisify(exec);
  * @returns Lambda functions
  */
 async function prebuild(config: CbConfig) {
-  await deleteFolderIfExists(path.resolve('cdk.out'));
+  //await deleteFolderIfExists(path.resolve('cdk.out'));
 
   const lambdasInCdk = await getLambdasDataFromCdkByCompilingAndRunning(config);
   Logger.verbose(
