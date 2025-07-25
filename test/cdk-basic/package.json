@@ -16,7 +16,7 @@
     "@types/node": "24.1.0",
     "adm-zip": "^0.5.16",
     "aws-cdk": "2.1006.0",
-    "esbuild": "^0.25.2",
+    "esbuild": "^0.25.8",
     "ts-node": "^10.9.2",
     "typescript": "~5.8.2"
   },
