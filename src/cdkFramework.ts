@@ -26,36 +26,39 @@ const execAsync = promisify(exec);
  * @param config Configuration
  * @returns Lambda functions
  */
-async function prebuild(config: CbConfig) {
-  //await deleteFolderIfExists(path.resolve('cdk.out'));
-
-  await getLambdasDataFromCdkByCompilingAndRunning(config);
-}
-
-/**
- * Get Lambdas data from CDK by compiling and running the CDK code
- * @param cdkConfigPath
- * @param config
- * @returns
- */
-async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
+async function boost(config: CbConfig) {
   const rootDir = process.cwd();
+
+  Logger.verbose(`Compiling CDK code from ${config.entryFile}...`);
 
   const compileCodeFile = await compileCdk({
     rootDir,
     entryFile: config.entryFile,
   });
 
+  Logger.verbose(
+    `Compiled CDK code to ${compileCodeFile}. Running the CDK code to get Lambda functions...`,
+  );
+
   const lambdas = await runCdkCodeAndReturnLambdas({
     config,
     compileCodeFile,
   });
+
+  Logger.verbose(
+    `Found the following Lambda functions in the CDK code:`,
+    JSON.stringify(lambdas, null, 2),
+  );
 
   const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
   await recreateBundlingTempFolders(lambdasEsBuildCommands);
 
   await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
+
+  const tempFolder = path.resolve(path.join(outputFolder, 'bundle'));
+
+  let outputs: esbuild.Metafile['outputs'] = {};
 
   const allBuildCombinations: {
     buildOptions: BundleSettings;
@@ -89,14 +92,6 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
     allBuildCombinations.map((b) => b.buildOptionsHash),
   );
 
-  const tempFolder = path.resolve(path.join(outputFolder, 'bundle'));
-
-  let outputs: esbuild.Metafile['outputs'] = {};
-
-  // const rootFolder = path.resolve(getModuleRoot('aws-cdk'), '../../');
-
-  // console.log(`[CDK] Root folder: ${rootFolder}`);
-
   await Promise.all(
     Array.from(uniqueBuildhashes).map(async (buildHash) => {
       const buildCombinations = allBuildCombinations.filter(
@@ -107,15 +102,6 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
       const entryPoints = buildCombinations
         .filter((b) => b.buildOptionsHash === buildHash)
         .map((b) => b.entryPoint);
-
-      // const outdir = path.join(
-      //   outputFolder,
-      //   'bundled',
-      //   crypto.createHash('sha256').update(buildHash).digest('hex'),
-      // );
-
-      // // delete the output folder if it exists
-      // await deleteFolderIfExists(outdir);
 
       const esBuildOpt: esbuild.BuildOptions = {
         entryPoints,
@@ -151,14 +137,16 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
         entryNames: '[dir]/[name]-[hash]/index',
         metafile: true,
         outExtension: { '.js': '.mjs' },
-        //absWorkingDir: path.resolve('../../'),
-        //absWorkingDir: rootFolder,
       };
 
-      Logger.log(
-        `Boost building \n${entryPoints.join('\n -')} with options:`,
-        JSON.stringify(esBuildOpt, null, 2),
-      );
+      if (Logger.isVerbose()) {
+        Logger.verbose(
+          `CDK booster 🚀 is bundling \n${entryPoints.join('\n -')} with options:`,
+          JSON.stringify(esBuildOpt, null, 2),
+        );
+      } else {
+        Logger.log(`CDK booster 🚀 is bundling \n${entryPoints.join('\n -')}`);
+      }
 
       const buildingResults = await esbuild.build(esBuildOpt);
 
@@ -223,6 +211,10 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
 
   // regular import
   await import(pathToFileURL(compileCodeFile).href);
+
+  Logger.verbose(
+    `CDK code has been run successfully. Lambdas data has been extracted.`,
+  );
 }
 
 /**
@@ -718,5 +710,5 @@ export function getProjectRoot(): string {
 }
 
 export const CdkFramework = {
-  prebuild,
+  boost: boost,
 };
