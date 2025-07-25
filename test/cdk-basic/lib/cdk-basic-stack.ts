@@ -2,7 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as log from 'aws-cdk-lib/aws-logs';
 import * as path from 'path';
 
 export class CdkbasicStack extends cdk.Stack {
@@ -17,7 +16,7 @@ export class CdkbasicStack extends cdk.Stack {
         entry: path.join(__dirname, '../services/testTsCommonJs/lambda.ts'),
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
-        logRetention: log.RetentionDays.ONE_DAY,
+        //logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
           commandHooks: {
             beforeBundling(): string[] {
@@ -43,7 +42,7 @@ export class CdkbasicStack extends cdk.Stack {
         entry: 'services/testTsEsModule/lambda.ts',
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
-        logRetention: log.RetentionDays.ONE_DAY,
+        //logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
           format: lambda_nodejs.OutputFormat.ESM,
           commandHooks: {
@@ -70,7 +69,7 @@ export class CdkbasicStack extends cdk.Stack {
         entry: 'services/testJsCommonJs/lambda.js',
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
-        logRetention: log.RetentionDays.ONE_DAY,
+        //logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
           commandHooks: {
             beforeBundling(inputDir: string, outputDir: string): string[] {

@@ -164,13 +164,13 @@ async function run() {
 
       if (Logger.isVerbose()) {
         Logger.verbose(
-          `CDK booster 🚀 is bundling \n${entryPoints.join('\n -')} with options:`,
+          `CDK Booster 🚀 is bundling \n${entryPoints.join('\n -')} with options:`,
           JSON.stringify(esBuildOpt, null, 2),
         );
       } else {
         Logger.log(
           `${entryPoints
-            .map((ep) => ` 🚀 CDK booster is bundling ${ep}`)
+            .map((ep) => ` 🚀 CDK Booster is bundling ${ep}`)
             .join('\n')}`,
         );
       }
@@ -579,7 +579,9 @@ async function executeCommands(
   );
 
   await Promise.all(promises);
-  Logger.log(`All ${commandPick} commands executed successfully`);
+  if (promises.length > 0) {
+    Logger.log(` 🚀 All ${commandPick} commands executed successfully`);
+  }
 }
 
 /**
@@ -636,13 +638,15 @@ async function runCdkCodeAndReturnLambdas({
 
     // Handle worker exit
     worker.on('exit', (code) => {
+      /*
       if (code !== 0) {
-        const errorMessage = `CDK worker stopped with exit code ${code}`;
-        Logger.error(`[CDK Worker]`, `${errorMessage}`);
+         const errorMessage = `CDK worker stopped with exit code ${code}`;
+         Logger.error(`[CDK Worker]`, `${errorMessage}`);
         reject(new Error(errorMessage));
       } else {
         Logger.verbose(`[CDK Worker] Worker exited successfully`);
       }
+        */
     });
 
     // Forward worker stdout to main process

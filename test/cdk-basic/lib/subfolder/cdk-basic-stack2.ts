@@ -26,7 +26,7 @@ export class CdkbasicStack2 extends cdk.Stack {
         entry: path.join(__dirname, '../../services/testJsEsModule/lambda.js'),
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
-        logRetention: log.RetentionDays.ONE_DAY,
+        //logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
           format: lambda_nodejs.OutputFormat.ESM,
           commandHooks: {
