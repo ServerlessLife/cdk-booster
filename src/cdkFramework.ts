@@ -41,7 +41,7 @@ async function prebuild(config: CbConfig) {
 async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
   const rootDir = process.cwd();
 
-  const compileCodeFile = await compileCdkPhase1({
+  const compileCodeFile = await compileCdk({
     rootDir,
     entryFile: config.entryFile,
   });
@@ -55,11 +55,7 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
 
   await recreateBundlingTempFolders(lambdasEsBuildCommands);
 
-  await executeCommands(
-    config,
-    lambdasEsBuildCommands,
-    'commandBeforeBundling',
-  );
+  await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
 
   const allBuildCombinations: {
     buildOptions: BundleSettings;
@@ -159,7 +155,7 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
         //absWorkingDir: rootFolder,
       };
 
-      console.log(
+      Logger.log(
         `Boost building \n${entryPoints.join('\n -')} with options:`,
         JSON.stringify(esBuildOpt, null, 2),
       );
@@ -172,25 +168,6 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
       };
     }),
   );
-
-  // const entryPoints = lambdasEsBuildCommands.map((l) => l.entryPoint);
-  // const tempFolder = '.cdkbooster/bundle';
-
-  // const buildingResults = await esbuild.build({
-  //   entryPoints,
-  //   bundle: true,
-  //   target: 'node20',
-  //   platform: 'node',
-  //   outdir: tempFolder,
-  //   sourcemap: true,
-  //   external: ['@aws-sdk/*'],
-  //   entryNames: '[dir]/[name]-[hash]/index',
-  //   metafile: true,
-  // });
-
-  // if (!buildingResults.metafile) {
-  //   throw new Error('No metafile found after building with esbuild');
-  // }
 
   // move files to the output folder
   await Promise.all(
@@ -238,7 +215,7 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
     }),
   );
 
-  await executeCommands(config, lambdasEsBuildCommands, 'commandAfterBundling');
+  await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
 
   // regular import
   await import(pathToFileURL(compileCodeFile).href);
@@ -269,7 +246,7 @@ async function recreateBundlingTempFolders(
   );
 }
 
-async function compileCdkPhase1({
+async function compileCdk({
   rootDir,
   entryFile,
 }: {
@@ -516,7 +493,6 @@ async function isEsm(entryFile: string) {
 }
 
 async function executeCommands(
-  config: CbConfig,
   lambdasBundle: LambdaBundle[],
   commandPick: 'commandBeforeBundling' | 'commandAfterBundling',
 ) {
