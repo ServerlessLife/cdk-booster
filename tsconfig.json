@@ -11,5 +11,5 @@
     ".vitepress/**/*",
     "scripts/**/*"
   ],
-  "exclude": ["node_modules", "dist", "cdk.out",]
+  "exclude": ["node_modules", "dist", "cdk.out"]
 }
