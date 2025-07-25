@@ -169,8 +169,8 @@ async function run() {
         );
       } else {
         Logger.log(
-          `CDK booster 🚀 is bundling the following entry points:\n${entryPoints
-            .map((ep) => ` - ${ep}`)
+          `${entryPoints
+            .map((ep) => ` 🚀 CDK booster is bundling ${ep}`)
             .join('\n')}`,
         );
       }
