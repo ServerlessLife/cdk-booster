@@ -12,8 +12,8 @@
   "devDependencies": {
     "@tsconfig/node22": "^22.0.2",
     "@types/adm-zip": "^0.5.7",
-    "@types/aws-lambda": "^8.10.148",
-    "@types/node": "22.13.14",
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "24.1.0",
     "adm-zip": "^0.5.16",
     "aws-cdk": "2.1006.0",
     "esbuild": "^0.25.2",
@@ -21,7 +21,7 @@
     "typescript": "~5.8.2"
   },
   "dependencies": {
-    "@aws-sdk/client-sts": "^3.775.0",
+    "@aws-sdk/client-sts": "^3.848.0",
     "aws-cdk-lib": "2.186.0",
     "constructs": "^10.4.2",
     "source-map-support": "^0.5.21",
