@@ -75,10 +75,8 @@ jobs:
         working-directory: test/cdk-basic
       - name: Check there was bundling
         run: |
-          if ! grep -q "Bundling asset" cdk-original.log; then
-            echo "ERROR: Expected 'Bundling asset' not found in logs."
-            exit 1
-          fi
+          ../../scripts/check-bundling.sh cdk-original.log true
+        working-directory: test/cdk-basic
       - name: Save CDK original state
         run: |
           npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json
@@ -90,10 +88,8 @@ jobs:
         working-directory: test/cdk-basic
       - name: Check there was no bundling
         run: |
-          if grep -q "Bundling asset" cdk-booster.log; then
-            echo "ERROR: Unexpected 'Bundling asset' found in logs."
-            exit 1
-          fi
+          ../../scripts/check-bundling.sh cdk-booster.log false
+        working-directory: test/cdk-basic
       - name: Save cdk-booster state
         run: |
           npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-booster-function-files.json

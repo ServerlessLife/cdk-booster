@@ -5,3 +5,5 @@ dist
 .vitepress/cache
 cdk-booster-function-files.json
 cdk-original-function-files.json
+cdk-original.log
+cdk-booster.log
