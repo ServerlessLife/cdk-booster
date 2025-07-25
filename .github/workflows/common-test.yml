@@ -84,6 +84,7 @@ jobs:
       - name: Deploy via cdk-booster
         run: |
           npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"
+          set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
       - name: Check there was no bundling

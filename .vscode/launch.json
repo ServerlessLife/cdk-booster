@@ -13,21 +13,6 @@
       "console": "integratedTerminal",
       "type": "node",
       "cwd": "${workspaceRoot}/test/cdk-basic"
-    },
-    {
-      "name": "cdkbooster - CDK basic - monorepo",
-      "program": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
-      "args": [
-        "../src/cdkbooster.ts",
-        "-c environment=test",
-        "--subfolder=cdk-basic"
-      ],
-      // "args": ["../src/cdkbooster.ts", "-w"],
-      "request": "launch",
-      "skipFiles": ["<node_internals>/**"],
-      "console": "integratedTerminal",
-      "type": "node",
-      "cwd": "${workspaceRoot}/test"
     }
   ]
 }

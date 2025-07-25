@@ -9,11 +9,11 @@ import { CdkbasicStack2 } from '../lib/subfolder/cdk-basic-stack2';
 
 const app = new cdk.App();
 
-const environment = app.node.tryGetContext('environment');
+let environment = app.node.tryGetContext('environment');
 
 if (!environment) {
-  throw new Error('Environment is not set in the context');
-  //environment = 'test';
+  //throw new Error('Environment is not set in the context');
+  environment = 'test';
 }
 
 new CdkbasicStack(app, 'CdkbasicStack', {

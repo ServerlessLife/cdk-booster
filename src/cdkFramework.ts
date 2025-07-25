@@ -286,7 +286,23 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
 
   const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
-  //empty the output folder
+  // empty the output folder sequentially
+  for (const lambdasEsBuildCommand of lambdasEsBuildCommands) {
+    const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
+      '-building',
+      '',
+    );
+    const target = path.dirname(entryOutputFilename);
+
+    await deleteFolderIfExists(target);
+    // create folder
+
+    console.log(`Creating folder: ${target}`);
+    await fs.mkdir(target, { recursive: true });
+  }
+
+  /*
+   //empty the output folder
   await Promise.all(
     lambdasEsBuildCommands.map((lambdasEsBuildCommand) => async () => {
       const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
@@ -300,6 +316,7 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
       await fs.mkdir(target, { recursive: true });
     }),
   );
+  */
 
   await executeCommands(
     config,
@@ -495,20 +512,50 @@ async function executeCommands(
   lambdasBundle: LambdaBundle[],
   commandPick: 'commandBeforeBundling' | 'commandAfterBundling',
 ) {
-  await Promise.all(
-    lambdasBundle
-      .filter((lambdasEsBuildCommand) => lambdasEsBuildCommand[commandPick])
-      .map((lambdasEsBuildCommand) => async () => {
-        let command = lambdasEsBuildCommand[commandPick]!;
-
-        command = command.replaceAll('-building', '');
-        console.log(
-          `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
-        );
-
-        await execAsync(command);
-      }),
+  const comandsToExecute = lambdasBundle.filter(
+    (lambdasEsBuildCommand) => lambdasEsBuildCommand[commandPick],
   );
+
+  if (comandsToExecute.length === 0) {
+    Logger.verbose(
+      `[CDK] No commands to execute for ${commandPick}, skipping...`,
+    );
+    return;
+  } else {
+    Logger.verbose(
+      `[CDK] Found ${comandsToExecute.length} commands to execute for ${commandPick}: \n${comandsToExecute
+        .map((lambdasEsBuildCommand) => lambdasEsBuildCommand[commandPick])
+        .join('\n')}`,
+    );
+  }
+
+  for (const lambdasEsBuildCommand of comandsToExecute) {
+    let command = lambdasEsBuildCommand[commandPick]!;
+
+    command = command.replaceAll('-building', '');
+    console.log(
+      `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
+    );
+
+    await execAsync(command);
+    console.log(`Command executed successfully: \n${command}`);
+  }
+
+  /*
+
+  const promises = comandsToExecute.map((lambdasEsBuildCommand) => async () => {
+    let command = lambdasEsBuildCommand[commandPick]!;
+
+    command = command.replaceAll('-building', '');
+    console.log(
+      `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
+    );
+
+    await execAsync(command);
+    console.log(`Command executed successfully: \n${command}`);
+  });
+  await Promise.all(promises);
+  */
 }
 
 /**
@@ -628,7 +675,9 @@ async function copyFolderRecursive(
   entryOutputFilename: string,
 ): Promise<void> {
   // Create destination directory
-  await fs.mkdir(dest, { recursive: true });
+  if (!existsSync(dest)) {
+    await fs.mkdir(dest, { recursive: true });
+  }
 
   const entries = await fs.readdir(src, { withFileTypes: true });
 
