@@ -541,9 +541,7 @@ async function runCdkCodeAndReturnLambdas({
 
   const lambdas: any[] = await new Promise((resolve, reject) => {
     const workerPath = pathToFileURL(
-      path.resolve(
-        path.join(getModuleDirname(), 'frameworks/cdkFrameworkWorker.mjs'),
-      ),
+      path.resolve(path.join(getModuleDirname(), 'cdkFrameworkWorker.mjs')),
     ).href;
 
     const worker = new Worker(new URL(workerPath), {
