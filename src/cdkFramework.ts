@@ -651,42 +651,35 @@ async function copyFolderRecursive(
   dest: string,
   entryOutputFilename: string,
 ): Promise<void> {
-  // Create destination directory
   if (!existsSync(dest)) {
     await fs.mkdir(dest, { recursive: true });
   }
 
   const entries = await fs.readdir(src, { withFileTypes: true });
+  const entryDir = path.dirname(entryOutputFilename);
+  const entryBasename = path.basename(
+    entryOutputFilename,
+    path.extname(entryOutputFilename),
+  );
+  const entryExt = path.extname(entryOutputFilename);
 
   for (const entry of entries) {
-    const srcPath = path.resolve(path.join(src, entry.name));
-    let destPath = path.resolve(path.join(dest, entry.name));
+    const srcPath = path.join(src, entry.name);
+    let destPath = path.join(dest, entry.name);
 
-    // fixing mjs & cjs & js extension
-    // if the destPath is the same as the entryOutputFilename, except extension make it the same
-
-    const entryOutputFilenameWithoutExtension = path.join(
-      path.dirname(entryOutputFilename),
-      path.basename(entryOutputFilename, path.extname(entryOutputFilename)),
-    );
+    // Fix extension if destPath matches entryOutputFilename pattern but has different extension
+    const destBasename = path.basename(destPath, path.extname(destPath));
     if (
-      destPath.startsWith(entryOutputFilenameWithoutExtension) &&
-      path.extname(destPath) !== path.extname(entryOutputFilename)
+      path.dirname(destPath) === entryDir &&
+      destBasename === entryBasename &&
+      path.extname(destPath) !== entryExt
     ) {
-      const sourceExtension = path.extname(srcPath);
-      const destExtension = path.extname(entryOutputFilename);
-      let fixedExtension: string;
-
-      if (sourceExtension.endsWith('.map')) {
-        fixedExtension = `${destExtension}.map`;
-      } else {
-        fixedExtension = destExtension;
-      }
-
-      destPath = `${entryOutputFilenameWithoutExtension}${fixedExtension}`;
+      const srcExt = path.extname(srcPath);
+      const fixedExt = srcExt.endsWith('.map') ? `${entryExt}.map` : entryExt;
+      destPath = path.join(entryDir, `${entryBasename}${fixedExt}`);
 
       console.log(
-        `Source extension: ${sourceExtension}, dest extension: ${destExtension} Fixing extension ${fixedExtension}, destPath: ${destPath}`,
+        `Fixing extension from ${srcExt} to ${fixedExt}, destPath: ${destPath}`,
       );
     }
 
