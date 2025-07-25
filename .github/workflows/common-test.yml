@@ -88,6 +88,7 @@ jobs:
         working-directory: test/cdk-basic
       - name: Check there was no bundling
         run: |
+          cat cdk-booster.log
           ../../scripts/check-bundling.sh cdk-booster.log false
         working-directory: test/cdk-basic
       - name: Save cdk-booster state
