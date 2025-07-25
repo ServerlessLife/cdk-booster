@@ -76,7 +76,6 @@
   "dependencies": {
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
-    "p-limit": "^6.2.0",
     "typescript": "~5.8.2"
   },
   "peerDependencies": {
@@ -84,8 +83,7 @@
   },
   "bundleDependencies": [
     "chalk",
-    "commander",
-    "p-limit"
+    "commander"
   ],
   "workspaces": [
     "test",

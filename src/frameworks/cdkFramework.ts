@@ -11,7 +11,6 @@ import { getModuleDirname, getProjectDirname } from '../getDirname.js';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import pLimit from 'p-limit';
 import { LambdaBundle } from '../types/lambdaBundle.js';
 import { BundleSettings } from '../types/bundleSettings.js';
 import crypto from 'node:crypto';
@@ -294,24 +293,19 @@ export class CdkFramework {
 
     const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
-    const parallel = config.parallel ?? 5;
-    const limit = pLimit(parallel);
-
     //empty the output folder
     await Promise.all(
-      lambdasEsBuildCommands.map((lambdasEsBuildCommand) =>
-        limit(async () => {
-          const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
-            '-building',
-            '',
-          );
-          const target = path.dirname(entryOutputFilename);
+      lambdasEsBuildCommands.map((lambdasEsBuildCommand) => async () => {
+        const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
+          '-building',
+          '',
+        );
+        const target = path.dirname(entryOutputFilename);
 
-          await deleteFolderIfExists(target);
-          // create folder
-          await fs.mkdir(target, { recursive: true });
-        }),
-      ),
+        await deleteFolderIfExists(target);
+        // create folder
+        await fs.mkdir(target, { recursive: true });
+      }),
     );
 
     await this.executeCommands(
@@ -512,25 +506,19 @@ export class CdkFramework {
     lambdasBundle: LambdaBundle[],
     commandPick: 'commandBeforeBundling' | 'commandAfterBundling',
   ) {
-    const parallel = config.parallel ?? 5;
-
-    const limit = pLimit(parallel);
-
     await Promise.all(
       lambdasBundle
         .filter((lambdasEsBuildCommand) => lambdasEsBuildCommand[commandPick])
-        .map((lambdasEsBuildCommand) =>
-          limit(async () => {
-            let command = lambdasEsBuildCommand[commandPick]!;
+        .map((lambdasEsBuildCommand) => async () => {
+          let command = lambdasEsBuildCommand[commandPick]!;
 
-            command = command.replaceAll('-building', '');
-            console.log(
-              `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
-            );
+          command = command.replaceAll('-building', '');
+          console.log(
+            `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
+          );
 
-            await execAsync(command);
-          }),
-        ),
+          await execAsync(command);
+        }),
     );
   }
 
