@@ -286,25 +286,9 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
 
   const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
-  // empty the output folder sequentially
-  for (const lambdasEsBuildCommand of lambdasEsBuildCommands) {
-    const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
-      '-building',
-      '',
-    );
-    const target = path.dirname(entryOutputFilename);
-
-    await deleteFolderIfExists(target);
-    // create folder
-
-    console.log(`Creating folder: ${target}`);
-    await fs.mkdir(target, { recursive: true });
-  }
-
-  /*
-   //empty the output folder
+  //empty the output folder
   await Promise.all(
-    lambdasEsBuildCommands.map((lambdasEsBuildCommand) => async () => {
+    lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
       const entryOutputFilename = lambdasEsBuildCommand.out.replaceAll(
         '-building',
         '',
@@ -316,7 +300,6 @@ async function getLambdasDataFromCdkByCompilingAndRunning(config: CbConfig) {
       await fs.mkdir(target, { recursive: true });
     }),
   );
-  */
 
   await executeCommands(
     config,
@@ -529,21 +512,7 @@ async function executeCommands(
     );
   }
 
-  for (const lambdasEsBuildCommand of comandsToExecute) {
-    let command = lambdasEsBuildCommand[commandPick]!;
-
-    command = command.replaceAll('-building', '');
-    console.log(
-      `Executing command: \n${command} \nfor ${lambdasEsBuildCommand.entryPoint}`,
-    );
-
-    await execAsync(command);
-    console.log(`Command executed successfully: \n${command}`);
-  }
-
-  /*
-
-  const promises = comandsToExecute.map((lambdasEsBuildCommand) => async () => {
+  const promises = comandsToExecute.map(async (lambdasEsBuildCommand) => {
     let command = lambdasEsBuildCommand[commandPick]!;
 
     command = command.replaceAll('-building', '');
@@ -555,7 +524,6 @@ async function executeCommands(
     console.log(`Command executed successfully: \n${command}`);
   });
   await Promise.all(promises);
-  */
 }
 
 /**
