@@ -451,6 +451,35 @@ async function compileCdk({
           contents = contents.replace(codeToFind, codeToFind + `return;`);
 
           Logger.verbose(`Injected code into ${args.path}`);
+        } else if (
+          //packages/aws-cdk-lib/core/lib/asset-staging.ts
+          args.path.includes(
+            path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
+          )
+        ) {
+          const codeToFind = 'if(fs().existsSync(bundleDir))return;';
+
+          if (!contents.includes(codeToFind)) {
+            throw new Error(`Can not find code to inject in ${args.path}`);
+          }
+
+          // Inject code to get the file path of the Lambda function and CDK hierarchy
+          contents = contents.replace(
+            codeToFind,
+            `
+            if(fs().existsSync(bundleDir)) {
+              if (process.env.CDK_BOOSTER_INSPECT !== 'true') {
+                console.log('[🚀 CDK Booster]', "😀 Function " + options.relativeEntryPath + " was prebundled");
+              }
+              return;
+            }
+            if (process.env.CDK_BOOSTER_INSPECT !== 'true') {
+              console.error('[🚀 CDK Booster]', "🚨 Function " + options.relativeEntryPath + " was not prebundled");
+            }
+            `,
+          );
+
+          Logger.verbose(`Injected code into ${args.path}`);
         }
 
         return {
