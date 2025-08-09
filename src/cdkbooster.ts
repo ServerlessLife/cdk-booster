@@ -41,9 +41,9 @@ async function run() {
   Logger.setVerbose(Configuration.config.verbose === true);
 
   Logger.verbose(
-    `Parameters: \n${Object.entries(Configuration.config)
-      .map(([key, value]) => ` - ${key}=${value}`)
-      .join('\n')}`,
+    `Parameters: ${Object.entries(Configuration.config)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(', ')}`,
   );
   Logger.verbose(`NPM module folder: ${getModuleDirname()}`);
   Logger.verbose(`Project folder: ${getProjectDirname()}`);
@@ -52,7 +52,9 @@ async function run() {
 
   const rootDir = process.cwd();
 
-  Logger.verbose(`Compiling CDK code from ${config.entryFile}...`);
+  await deleteBundlingTempFolders();
+
+  Logger.verbose(`Compiling CDK code from ${config.entryFile}`);
 
   const compileCodeFile = await compileCdk({
     rootDir,
@@ -60,7 +62,7 @@ async function run() {
   });
 
   Logger.verbose(
-    `Compiled CDK code to ${compileCodeFile}. Running the CDK code to get Lambda functions...`,
+    `Compiled CDK code to ${compileCodeFile}. Running the CDK code to get Lambda functions`,
   );
 
   const lambdas = await runCdkCodeAndReturnLambdas({
@@ -164,15 +166,12 @@ async function run() {
 
       if (Logger.isVerbose()) {
         Logger.verbose(
-          `CDK Booster 🚀 is bundling \n${entryPoints.join('\n -')} with options:`,
+          `Bundling with options:`,
           JSON.stringify(esBuildOpt, null, 2),
+          `following functions \n - ${entryPoints.join('\n - ')}`,
         );
       } else {
-        Logger.log(
-          `${entryPoints
-            .map((ep) => ` 🚀 CDK Booster is bundling ${ep}`)
-            .join('\n')}`,
-        );
+        Logger.log(`Bundling:\n - ${entryPoints.join('\n - ')}`);
       }
 
       const buildingResults = await esbuild.build(esBuildOpt);
@@ -223,7 +222,7 @@ async function run() {
       );
       const target = path.dirname(entryOutputFilename);
 
-      Logger.verbose(`Moving files from ${source} to ${target}...`);
+      Logger.verbose(`Moving files from ${source} to ${target}`);
 
       // create folder if it doesn't exist
       await copyFolderRecursive(source, target, entryOutputFilename);
@@ -239,8 +238,26 @@ async function run() {
   // regular import
   await import(pathToFileURL(compileCodeFile).href);
 
-  Logger.verbose(
-    `CDK code has been run successfully. Lambdas data has been extracted.`,
+  Logger.log(`CDK code has been run successfully. Lambdas have been bundled.`);
+}
+
+/**
+ * Delete all bundling temp folders in the cdk.out folder
+ */
+async function deleteBundlingTempFolders(): Promise<void> {
+  const rootDir = process.cwd();
+
+  const cdkOutFolder = path.join(rootDir, 'cdk.out');
+  Logger.verbose(`Deleting bundling temp folders in ${cdkOutFolder}`);
+  const bundlingTempFolders = await fs.readdir(cdkOutFolder);
+  await Promise.all(
+    bundlingTempFolders.map(async (folder) => {
+      const folderPath = path.join(cdkOutFolder, folder);
+      if (folder.startsWith('bundling-temp-')) {
+        Logger.verbose(`Deleting bundling temp folder: ${folderPath}`);
+        await fs.rm(folderPath, { recursive: true, force: true });
+      }
+    }),
   );
 }
 
@@ -259,7 +276,6 @@ async function recreateBundlingTempFolders(
       );
       const target = path.dirname(entryOutputFilename);
 
-      await deleteFolderIfExists(target);
       // create folder
       await fs.mkdir(target, { recursive: true });
       Logger.verbose(
@@ -407,16 +423,14 @@ async function compileCdk({
               `,
           );
 
-          // contents = contents.replace(
-          //   'const sourceMapEnabled',
-          //   'let sourceMapEnabled',
-          // );
           const codeToFind3 =
             'return(0,util_1().exec)(osPlatform==="win32"?"cmd":"bash",[osPlatform==="win32"?"/c":"-c",localCommand],{env:{...process.env,...environment},stdio:["ignore",process.stderr,"inherit"],cwd,windowsVerbatimArguments:osPlatform==="win32"}),!0';
           contents = contents.replace(
             codeToFind3,
             `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3.replace('return', '')})`,
           );
+
+          Logger.verbose(`Injected code into ${args.path}`);
         } else if (
           args.path.includes(
             path.join(
@@ -435,6 +449,8 @@ async function compileCdk({
 
           // Inject code to prevent deploying the assets
           contents = contents.replace(codeToFind, codeToFind + `return;`);
+
+          Logger.verbose(`Injected code into ${args.path}`);
         }
 
         return {
@@ -534,53 +550,43 @@ async function executeCommands(
   );
 
   if (commandsToExecute.length === 0) {
-    Logger.verbose(`No commands to execute for ${commandPick}, skipping...`);
+    Logger.verbose(`No commands to execute for ${commandPick}, skipping`);
     return;
   }
 
-  Logger.verbose(
-    `Commands to execute for ${commandPick}: \n${commandsToExecute
-      .map(
-        (lambdasEsBuildCommand) => ` - ${lambdasEsBuildCommand[commandPick]}`,
-      )
-      .join('\n')}`,
-  );
-
   // Execute all commands in parallel
-  const promises = commandsToExecute.map(
-    async (lambdasEsBuildCommand, index) => {
-      let command = lambdasEsBuildCommand[commandPick]!;
+  const promises = commandsToExecute.map(async (lambdasEsBuildCommand) => {
+    let command = lambdasEsBuildCommand[commandPick]!;
 
-      // Remove '-building' suffix from paths in commands
-      command = command.replaceAll('-building', '');
+    // Remove '-building' suffix from paths in commands
+    command = command.replaceAll('-building', '');
 
-      Logger.verbose(
-        `[${index + 1}/${commandsToExecute.length}] Executing command for ${lambdasEsBuildCommand.entryPoint}: ${command}`,
-      );
+    Logger.verbose(
+      `Executing command for ${lambdasEsBuildCommand.entryPoint}: ${command}`,
+    );
 
-      try {
-        const { stdout, stderr } = await execAsync(command);
+    try {
+      const { stdout, stderr } = await execAsync(command);
 
-        if (stdout) {
-          Logger.verbose(`Command stdout: ${stdout}`);
-        }
-        if (stderr) {
-          Logger.verbose(`Command stderr: ${stderr}`);
-        }
-
-        Logger.verbose(`Command executed successfully: ${command}`);
-      } catch (error: any) {
-        throw new Error(
-          `Command execution failed for ${lambdasEsBuildCommand.entryPoint}: ${error.message}`,
-          { cause: error },
-        );
+      if (stdout) {
+        Logger.verbose(`Command stdout: ${stdout}`);
       }
-    },
-  );
+      if (stderr) {
+        Logger.verbose(`Command stderr: ${stderr}`);
+      }
+    } catch (error: any) {
+      throw new Error(
+        `Command execution failed for ${lambdasEsBuildCommand.entryPoint}: ${error.message}`,
+        { cause: error },
+      );
+    }
+  });
 
   await Promise.all(promises);
   if (promises.length > 0) {
-    Logger.log(` 🚀 All ${commandPick} commands executed successfully`);
+    Logger.log(
+      `All ${commandPick === 'commandBeforeBundling' ? 'before bundling' : 'after bundling'} commands executed successfully`,
+    );
   }
 }
 
@@ -599,7 +605,7 @@ async function runCdkCodeAndReturnLambdas({
   compileCodeFile: string;
 }) {
   Logger.verbose(
-    `Running CDK code in worker thread to extract Lambda configurations...`,
+    `Running CDK code in worker thread to extract Lambda configurations`,
   );
 
   const lambdas: any[] = await new Promise((resolve, reject) => {
@@ -620,7 +626,7 @@ async function runCdkCodeAndReturnLambdas({
     // Handle successful completion
     worker.on('message', async (message) => {
       Logger.verbose(
-        `[CDK Worker] Worker completed successfully, found ${message.length} Lambda functions`,
+        `Worker completed successfully, found ${message.length} Lambda functions`,
       );
       resolve(message);
       await worker.terminate();
@@ -628,7 +634,7 @@ async function runCdkCodeAndReturnLambdas({
 
     // Handle worker errors
     worker.on('error', (error) => {
-      Logger.error(`[CDK Worker] Error: ${error.message}`, error);
+      Logger.error(`Error: ${error.message}`, error);
       reject(
         new Error(`Error running CDK code in worker: ${error.message}`, {
           cause: error,
@@ -637,28 +643,25 @@ async function runCdkCodeAndReturnLambdas({
     });
 
     // Handle worker exit
-    worker.on('exit', () => {
-      // (code) => {
-      /*
-      if (code !== 0) {
-         const errorMessage = `CDK worker stopped with exit code ${code}`;
-         Logger.error(`[CDK Worker]`, `${errorMessage}`);
-        reject(new Error(errorMessage));
-      } else {
-        Logger.verbose(`[CDK Worker] Worker exited successfully`);
-      }
-        */
-    });
+    // worker.on('exit', (code) => {
+    //   if (code !== 0) {
+    //     const errorMessage = `CDK worker stopped with exit code ${code}`;
+    //     Logger.error(`${errorMessage}`);
+    //     reject(new Error(errorMessage));
+    //   } else {
+    //     Logger.verbose(`Worker exited successfully`);
+    //   }
+    // });
 
     // Forward worker stdout to main process
-    worker.stdout.on('data', (data: Buffer) => {
-      Logger.log(`[CDK Worker]`, data.toString().trim());
-    });
+    // worker.stdout.on('data', (data: Buffer) => {
+    //   Logger.log(data.toString().trim());
+    // });
 
     // Forward worker stderr to main process
-    worker.stderr.on('data', (data: Buffer) => {
-      Logger.error(`[CDK Worker]`, data.toString().trim());
-    });
+    // worker.stderr.on('data', (data: Buffer) => {
+    //   Logger.verbose(data.toString().trim());
+    // });
 
     // Send the compiled code file path to the worker
     Logger.verbose(`Sending compiled code file to worker: ${compileCodeFile}`);
@@ -682,20 +685,6 @@ async function runCdkCodeAndReturnLambdas({
     packageJsonPath: string;
     bundling: BundlingOptions;
   }[];
-}
-
-/**
- * Recursively deletes a folder if it exists.
- * @param folderPath - Path to the folder to delete
- */
-async function deleteFolderIfExists(folderPath: string): Promise<void> {
-  try {
-    Logger.verbose(`Deleting folder: ${folderPath}`);
-
-    await fs.rm(folderPath, { recursive: true, force: true });
-  } catch (err) {
-    Logger.verbose(`Warning: Couldn't delete ${folderPath}`, err);
-  }
 }
 
 /**

@@ -1,13 +1,14 @@
 import chalk from 'chalk';
 
 let verboseEnabled = false;
+const logPrefix = '[🚀 CDK Booster]';
 
 /**
  * Log a message
  * @param args The arguments to log
  */
 function log(...args: any[]) {
-  args = args.map((arg) => {
+  args = [logPrefix, ...args].map((arg) => {
     if (typeof arg === 'string') {
       // Regular expression to find text within square brackets
       return arg.replace(/\[(.*?)\]/g, (match) => chalk.gray(match)); // Colorizes the entire bracketed content
@@ -22,7 +23,9 @@ function log(...args: any[]) {
  * @param args The arguments to log
  */
 function important(...args: any[]) {
-  args = args.map((arg) => (typeof arg === 'string' ? chalk.yellow(arg) : arg));
+  args = [logPrefix, ...args].map((arg) =>
+    typeof arg === 'string' ? chalk.yellow(arg) : arg,
+  );
   console.log(...args);
 }
 
@@ -31,7 +34,9 @@ function important(...args: any[]) {
  * @param args The arguments to log
  */
 function error(...args: any[]) {
-  args = args.map((arg) => (typeof arg === 'string' ? chalk.red(arg) : arg));
+  args = [logPrefix, ...args].map((arg) =>
+    typeof arg === 'string' ? chalk.red(arg) : arg,
+  );
   console.error(...args);
 }
 
@@ -40,7 +45,9 @@ function error(...args: any[]) {
  * @param args The arguments to log
  */
 function warn(...args: any[]) {
-  args = args.map((arg) => (typeof arg === 'string' ? chalk.yellow(arg) : arg));
+  args = [logPrefix, ...args].map((arg) =>
+    typeof arg === 'string' ? chalk.yellow(arg) : arg,
+  );
   console.warn(...args);
 }
 
@@ -49,7 +56,7 @@ function warn(...args: any[]) {
  * @param args The arguments to log
  */
 function info(...args: any[]) {
-  args = args.map((arg) =>
+  args = [logPrefix, ...args].map((arg) =>
     typeof arg === 'string' ? chalk.greenBright(arg) : arg,
   );
   console.info(...args);
@@ -61,7 +68,9 @@ function info(...args: any[]) {
  */
 function verbose(...args: any[]) {
   if (verboseEnabled) {
-    args = args.map((arg) => (typeof arg === 'string' ? chalk.grey(arg) : arg));
+    args = [logPrefix, ...args].map((arg) =>
+      typeof arg === 'string' ? chalk.grey(arg) : arg,
+    );
     console.info(...args);
   }
 }

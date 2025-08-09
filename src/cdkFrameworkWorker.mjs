@@ -7,7 +7,7 @@ Logger.setVerbose(workerData.verbose);
 process.env.CDK_OUTDIR = 'cdk.out';
 process.env.CDK_BOOSTER_INSPECT = 'true';
 
-Logger.verbose(`[CDK] [Worker] Started`);
+Logger.verbose(`[CDK Worker] Started`);
 
 parentPort.on('message', async (data) => {
   try {
@@ -31,7 +31,7 @@ parentPort.on('message', async (data) => {
     );
     parentPort.postMessage(lambdas);
   } catch (error) {
-    Logger.error(`[CDK] [Worker] Error`, error);
+    Logger.error(`[CDK Worker] Error`, error);
     throw error;
   }
 });
