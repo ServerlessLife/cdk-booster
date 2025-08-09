@@ -84,7 +84,7 @@ jobs:
         working-directory: test/cdk-basic
       - name: Deploy via cdk-booster
         run: |
-          npx run prepare-booster
+          npm run prepare-booster
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
