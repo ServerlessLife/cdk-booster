@@ -70,7 +70,8 @@ jobs:
       #   continue-on-error: true
       - name: Deploy CDK original
         run: |
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
+          npm run prepare-original
+          set -o pipefail
           npm run deploy 2>&1 | tee cdk-original.log
         working-directory: test/cdk-basic
       - name: Check there was bundling
@@ -83,7 +84,7 @@ jobs:
         working-directory: test/cdk-basic
       - name: Deploy via cdk-booster
         run: |
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"
+          npx run prepare-booster
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
