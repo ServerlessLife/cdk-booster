@@ -25,7 +25,6 @@ jobs:
     needs: build
     with:
       mode: build
-      testMonorepo: false
 
   publish:
     needs: test

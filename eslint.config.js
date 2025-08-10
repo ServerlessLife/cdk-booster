@@ -9,7 +9,7 @@ export default [
     ignores: [
       '**/dist/**',
       '**/cdk.out/**',
-      '**/.cdkbooster/**',
+      '**/.cdk-booster/**',
       '**/.serverless/**',
       '**/.aws-sam/**',
       'src/extension/aws/*.js',

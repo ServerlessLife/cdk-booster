@@ -9,10 +9,6 @@ on:
         description: "'build' (just builded code, used while publishing) or 'global' (real NPM installed globally) or 'local' (real NPM installed locally)"
         type: string
         required: true
-      testMonorepo:
-        description: 'Test monorepo by specifying folder in config'
-        type: string
-        required: true
       version:
         description: 'Specify the version of the package'
         type: string
@@ -23,9 +19,7 @@ permissions:
   contents: write
 
 env:
-  DISABLE_PARALLEL_DEPLOY: false
   REAL_NPM: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
-  TEST_MONOREPO: ${{ inputs.testMonorepo }}
   node_version: 22
 
 jobs:
@@ -70,7 +64,7 @@ jobs:
       #   continue-on-error: true
       - name: Deploy CDK original
         run: |
-          npm run prepare-original
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-original.log
         working-directory: test/cdk-basic
@@ -82,9 +76,17 @@ jobs:
         run: |
           npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json
         working-directory: test/cdk-basic
-      - name: Deploy via cdk-booster
+      - name: Deploy via cdk-booster (build mode)
+        if: ${{ inputs.mode == 'build' }}
         run: |
-          npm run prepare-booster
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
+          set -o pipefail
+          npm run deploy 2>&1 | tee cdk-booster.log
+        working-directory: test/cdk-basic
+      - name: Deploy via cdk-booster (global or local mode)
+        if: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
+        run: |
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node cdk-booster bin/cdk-basic.ts"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic

@@ -29,21 +29,21 @@
     "nodejs"
   ],
   "bin": {
-    "lld": "dist/cdkbooster.mjs"
+    "cdk-booster": "dist/cdk-booster.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "lint": "eslint . --fix",
     "prettier": "prettier . --write",
     "prepare": "husky",
-    "add-bang": "echo '#!/usr/bin/env node' | cat - ./dist/cdkbooster.mjs > ./dist/cdkbooster.mjs.tmp && mv ./dist/cdkbooster.mjs.tmp ./dist/cdkbooster.mjs",
+    "add-bang": "echo '#!/usr/bin/env node' | cat - ./dist/cdk-booster.mjs > ./dist/cdk-booster.mjs.tmp && mv ./dist/cdk-booster.mjs.tmp ./dist/cdk-booster.mjs",
     "build": "tsc -p tsconfig.build.json && cp src/cdkFrameworkWorker.mjs dist && node fix-imports.js && npm run add-bang",
     "deploy-github-role": "aws cloudformation deploy --stack-name cdk-booster-deploy-role --template-file cloudformation/gitHubDeployRole.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --profile cdkbooster",
     "deploy-tests": "npm run deploy --workspaces --if-present --parallel",
     "test:deploy-original": "cd test/cdk-basic && npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"npx ts-node --prefer-ts-exts bin/cdk-basic.ts\" && npm run deploy 2>&1 | tee cdk-original.log",
     "test:check-bundling": "cd test/cdk-basic && ../../scripts/check-bundling.sh cdk-original.log true",
     "test:save-original-state": "cd test/cdk-basic && npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json",
-    "test:deploy-booster": "cd test/cdk-basic && npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"node ../../dist/cdkbooster.mjs bin/cdk-basic.ts\" && npm run deploy 2>&1 | tee cdk-booster.log",
+    "test:deploy-booster": "cd test/cdk-basic && npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"node ../../dist/cdk-booster.mjs bin/cdk-basic.ts\" && npm run deploy 2>&1 | tee cdk-booster.log",
     "test:check-no-bundling": "cd test/cdk-basic && ../../scripts/check-bundling.sh cdk-booster.log false",
     "test:save-booster-state": "cd test/cdk-basic && npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-booster-function-files.json",
     "test:compare-states": "cd test/cdk-basic && npx tsx ../../scripts/compare-states.ts cdk-original-function-files.json cdk-booster-function-files.json",

@@ -13,7 +13,7 @@
  *   new-app-value    : New value for the "app" property
  *
  * Examples:
- *   npx ts-node modify-cdk-json.ts test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"
+ *   npx ts-node modify-cdk-json.ts test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
  *   npx ts-node modify-cdk-json.ts ./cdk.json "npm run start"
  *   npx ts-node modify-cdk-json.ts /path/to/project/cdk.json "npx ts-node bin/app.ts"
  *
@@ -128,7 +128,7 @@ function main(): void {
     console.log('');
     console.log('Examples:');
     console.log(
-      '  npx ts-node modify-cdk-json.ts test/cdk-basic/cdk.json "node ../../dist/cdkbooster.mjs bin/cdk-basic.ts"',
+      '  npx ts-node modify-cdk-json.ts test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"',
     );
     console.log('  npx ts-node modify-cdk-json.ts ./cdk.json "npm run start"');
     process.exit(1);

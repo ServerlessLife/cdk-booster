@@ -7,7 +7,7 @@
   "scripts": {
     "deploy": "cdk deploy --all -c environment=test --require-approval never --outputs-file cdk-outputs.json",
     "prepare-original": "tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"npx ts-node --prefer-ts-exts bin/cdk-basic.ts\"",
-    "prepare-booster": "tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"node ../../dist/cdkbooster.mjs bin/cdk-basic.ts\"",
+    "prepare-booster": "tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"node ../../dist/cdk-booster.mjs bin/cdk-basic.ts\"",
     "deploy-original": "npm run prepare-original && npm run deploy",
     "deploy-booster": "npm run prepare-booster && npm run deploy",
     "destroy": "cdk destroy --all -c environment=test --force"
