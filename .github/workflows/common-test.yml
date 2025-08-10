@@ -86,7 +86,7 @@ jobs:
       - name: Deploy via cdk-booster (global or local mode)
         if: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
         run: |
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node cdk-booster bin/cdk-basic.ts"
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
