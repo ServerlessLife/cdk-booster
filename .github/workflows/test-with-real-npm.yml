@@ -15,12 +15,12 @@ permissions:
   contents: write
 
 jobs:
-  # test_global:
-  #   uses: ./.github/workflows/common-test.yml
-  #   with:
-  #     mode: global
-  #     version: ${{ inputs.version }}
-  #   secrets: inherit
+  test_global:
+    uses: ./.github/workflows/common-test.yml
+    with:
+      mode: global
+      version: ${{ inputs.version }}
+    secrets: inherit
 
   test_local:
     uses: ./.github/workflows/common-test.yml

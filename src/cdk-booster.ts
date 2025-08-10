@@ -237,8 +237,6 @@ async function run() {
 
   // regular import
   await import(pathToFileURL(compileCodeFile).href);
-
-  Logger.log(`CDK code has been run successfully. Lambdas have been bundled.`);
 }
 
 /**
