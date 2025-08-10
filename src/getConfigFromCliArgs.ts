@@ -12,7 +12,7 @@ export async function getConfigFromCliArgs(): Promise<CbConfig> {
 
   const program = new Command();
 
-  program.name('lld').description('CDK Booster').version(version);
+  program.name('cdk-booster').description('CDK Booster').version(version);
   program.option('-v, --verbose', 'Verbose logging');
   program.arguments('<string>');
 

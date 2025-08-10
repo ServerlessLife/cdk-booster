@@ -14,7 +14,7 @@ Resources:
   GitHubActionsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: lld-deploy-role
+      RoleName: cdkbooster-deploy-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
