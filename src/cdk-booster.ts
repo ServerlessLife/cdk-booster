@@ -133,16 +133,14 @@ async function run() {
         bundle: true,
         platform: 'node',
         outdir: tempFolder,
-        //...buildOptions,
         target: buildOptions.target,
         format: buildOptions.format,
         minify: buildOptions.minify,
-        //sourcemap: true, //buildOptions.sourcemap, TODO FIX THIS
         sourcemap: buildOptions.sourcemap,
         sourcesContent: buildOptions.sourcesContent,
         external: buildOptions.external,
-        //loader: buildOptions.loader,
-        //define: buildOptions.define,
+        loader: buildOptions.loader,
+        define: buildOptions.define,
         logLevel: buildOptions.logLevel,
         keepNames: buildOptions.keepNames,
         tsconfig: buildOptions.tsconfig,
@@ -154,11 +152,9 @@ async function run() {
         drop: buildOptions.drop,
         pure: buildOptions.pure,
         logOverride: buildOptions.logOverride,
-        //outExtension: buildOptions.outExtension,
+        // outExtension: buildOptions.outExtension, // TEST THIS
 
-        // target: 'node20',
-        // sourcemap: true,
-        // external: ['@aws-sdk/*'],
+        // I need this to properly output bundled files
         entryNames: '[dir]/[name]-[hash]/index',
         metafile: true,
         outExtension: { '.js': '.mjs' },
@@ -361,7 +357,7 @@ async function compileCdk({
           // Inject code to get the file path of the Lambda function and CDK hierarchy
           // path to match it with the Lambda function. Store data in the global variable.
 
-          //NOTE: This handles diferetn versions of CDK. Newer versions use scope
+          //NOTE: This handles diferent versions of CDK. Newer versions use scope
           // this.props.target ?? (scope ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
 
           contents = contents.replace(
@@ -375,22 +371,17 @@ async function compileCdk({
                   const out = pathJoin(options.outputDir,outFile);
 
                   const lambdaInfo = {
-                    //outfile: out,
-                    //inputDir: options.inputDir,
-                    //options: options,
-                    //props: this.props,
-                    //outfile,
                     command: command,
                     entryPoint: relativeEntryPath,
                     out,
                     target: this.props.target ?? (scope ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
                     format: this.props.format,
                     minify: this.props.minify,
-                    sourcemap: sourceMapValue,
+                    sourcemap: sourceMap ? sourceMapValue : false,
                     sourcesContent,
                     external: this.externals,
-                    loader: loaders,
-                    define: defines,
+                    loader: this.props.loader,
+                    define: this.props.define,
                     logLevel: this.props.logLevel,
                     keepNames: this.props.keepNames,
                     tsconfig: this.relativeTsconfigPath ? pathJoin(options.inputDir, this.relativeTsconfigPath): undefined,
@@ -408,7 +399,6 @@ async function compileCdk({
                   };
 
                   global.lambdas.push(lambdaInfo);
-
 
                   const fs = require('fs');
                   const path = require('path');
