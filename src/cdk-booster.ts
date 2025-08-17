@@ -128,6 +128,9 @@ async function run() {
         .filter((b) => b.buildOptionsHash === buildHash)
         .map((b) => b.entryPoint);
 
+      const normalizedEsbuildArgs = normalizeEsbuildArgs(
+        buildOptions.esbuildArgs,
+      );
       const esBuildOpt: esbuild.BuildOptions = {
         entryPoints,
         bundle: true,
@@ -148,11 +151,11 @@ async function run() {
         footer: buildOptions.footer,
         mainFields: buildOptions.mainFields,
         inject: buildOptions.inject,
-        alias: buildOptions.alias,
-        drop: buildOptions.drop,
-        pure: buildOptions.pure,
-        logOverride: buildOptions.logOverride,
-        // outExtension: buildOptions.outExtension, // TEST THIS
+        alias: normalizedEsbuildArgs?.alias,
+        drop: normalizedEsbuildArgs?.drop as esbuild.Drop[],
+        pure: normalizedEsbuildArgs?.pure,
+        logOverride: normalizedEsbuildArgs?.logOverride,
+        //outExtension: buildOptions.outExtension,
 
         // I need this to properly output bundled files
         entryNames: '[dir]/[name]-[hash]/index',
@@ -233,6 +236,60 @@ async function run() {
 
   // regular import
   await import(pathToFileURL(compileCodeFile).href);
+}
+
+/**
+ * Convert esbuildArgs with CLI-style keys into esbuild options object.
+ */
+export function normalizeEsbuildArgs(
+  esbuildArgs: { [key: string]: string | boolean } = {},
+) {
+  const out: {
+    alias?: Record<string, string>;
+    drop?: string[];
+    pure?: string[];
+    logOverride?: Record<
+      string,
+      'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'silent'
+    >;
+    outExtension?: Record<string, string>;
+  } = {};
+
+  for (const [key, value] of Object.entries(esbuildArgs)) {
+    const [prefix, name] = key.split(':');
+
+    switch (prefix) {
+      case '--alias':
+        out.alias ??= {};
+        if (name && typeof value === 'string') out.alias[name] = value;
+        break;
+
+      case '--drop':
+        out.drop ??= [];
+        if (name) out.drop.push(name);
+        else if (typeof value === 'string') out.drop.push(...value.split(','));
+        break;
+
+      case '--pure':
+        out.pure ??= [];
+        if (name) out.pure.push(name);
+        else if (typeof value === 'string') out.pure.push(...value.split(','));
+        break;
+
+      case '--log-override':
+        out.logOverride ??= {};
+        if (name && typeof value === 'string')
+          out.logOverride[name] = value as any;
+        break;
+
+      case '--out-extension':
+        out.outExtension ??= {};
+        if (name && typeof value === 'string') out.outExtension[name] = value;
+        break;
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -377,7 +434,7 @@ async function compileCdk({
                     target: this.props.target ?? (scope ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
                     format: this.props.format,
                     minify: this.props.minify,
-                    sourcemap: sourceMap ? sourceMapValue : false,
+                    sourcemap: sourceMapEnabled ? ((this.props.sourceMapMode === 'default' || !this.props.sourceMapMode) ? true : this.props.sourceMapMode) : false,
                     sourcesContent,
                     external: this.externals,
                     loader: this.props.loader,
@@ -385,15 +442,11 @@ async function compileCdk({
                     logLevel: this.props.logLevel,
                     keepNames: this.props.keepNames,
                     tsconfig: this.relativeTsconfigPath ? pathJoin(options.inputDir, this.relativeTsconfigPath): undefined,
-                    banner: this.props.banner,
-                    footer: this.props.footer,
+                    banner: this.props.banner ? { js: this.props.banner } : undefined,
+                    footer: this.props.footer ? { js: this.props.footer } : undefined,
                     mainFields: this.props.mainFields,
                     inject: this.props.inject,
-                    alias: this.props.esbuildArgs?.alias,
-                    drop: this.props.esbuildArgs?.drop,
-                    pure: this.props.esbuildArgs?.pure,
-                    logOverride: this.props.esbuildArgs?.logOverride,
-                    outExtension: this.props.esbuildArgs?.outExtension,
+                    esbuildArgs: this.props.esbuildArgs,
                     commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(options.inputDir, options.outputDir) ?? [], tscCommand]),
                     commandAfterBundling: chain([...(this.props.nodeModules && this.props.commandHooks?.beforeInstall(options.inputDir, options.outputDir)) ?? [], depsCommand, ...this.props.commandHooks?.afterBundling(options.inputDir, options.outputDir) ?? []])
                   };

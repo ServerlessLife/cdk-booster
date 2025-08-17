@@ -10,6 +10,9 @@
     "prepare-booster": "tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"node ../../dist/cdk-booster.mjs bin/cdk-basic.ts\"",
     "deploy-original": "npm run prepare-original && npm run deploy",
     "deploy-booster": "npm run prepare-booster && npm run deploy",
+    "build": "cdk synth -c environment=test --no-staging",
+    "build-original": "npm run prepare-original && npm run build",
+    "build-booster": "npm run prepare-booster && npm run build",
     "destroy": "cdk destroy --all -c environment=test --force"
   },
   "devDependencies": {

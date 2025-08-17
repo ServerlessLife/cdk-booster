@@ -17,9 +17,14 @@ export type BundleSettings = Pick<
   | 'footer'
   | 'mainFields'
   | 'inject'
-  | 'alias'
-  | 'drop'
-  | 'pure'
-  | 'logOverride'
-  | 'outExtension'
->;
+  // The following properties are covered by esbuildArgs
+  // | 'alias'
+  // | 'drop'
+  // | 'pure'
+  // | 'logOverride'
+  // | 'outExtension'
+> & {
+  readonly esbuildArgs?: {
+    [key: string]: string | boolean;
+  };
+};
