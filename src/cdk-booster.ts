@@ -49,9 +49,9 @@ async function run() {
   Logger.verbose(`Project folder: ${getProjectDirname()}`);
 
   const config = Configuration.config;
-
   const rootDir = process.cwd();
 
+  // Clean up any existing bundling temp folders before starting
   await deleteBundlingTempFolders();
 
   Logger.verbose(`Compiling CDK code from ${config.entryFile}`);
@@ -62,7 +62,7 @@ async function run() {
   });
 
   Logger.verbose(
-    `Compiled CDK code to ${compileCodeFile}. Running the CDK code to get Lambda functions`,
+    `Compiled CDK code to ${compileCodeFile}. Running the CDK code to extract Lambda functions`,
   );
 
   const lambdas = await runCdkCodeAndReturnLambdas({
@@ -71,66 +71,44 @@ async function run() {
   });
 
   Logger.verbose(
-    `Found the following Lambda functions in the CDK code:`,
+    `Found ${lambdas.length} Lambda functions in the CDK code:`,
     JSON.stringify(lambdas, null, 2),
   );
 
   const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
 
+  // Prepare bundling temp folders for each Lambda function
   await recreateBundlingTempFolders(lambdasEsBuildCommands);
 
+  // Execute pre-bundling commands
   await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
 
   const tempFolder = path.resolve(path.join(outputFolder, 'bundle'));
 
   let outputs: esbuild.Metafile['outputs'] = {};
 
-  const allBuildCombinations: {
-    buildOptions: BundleSettings;
-    entryPoint: string;
-    buildOptionsHash: string;
-  }[] = lambdasEsBuildCommands.map((lambdasEsBuildCommand) => {
-    const copy: Partial<LambdaBundle> = {
-      ...lambdasEsBuildCommand,
-    };
-    delete copy.outfile;
-    delete copy.command;
-    delete copy.entryPoint;
-    delete copy.out;
-    delete copy.commandBeforeBundling;
-    delete copy.commandAfterBundling;
+  // Create build combinations grouped by identical build options to optimize bundling
+  const allBuildCombinations = createBuildCombinations(lambdasEsBuildCommands);
 
-    const buildOptions: BundleSettings = copy;
-    const entryPoint = lambdasEsBuildCommand.entryPoint;
-    const buildOptionsHash = crypto
-      .createHash('sha256')
-      .update(JSON.stringify(buildOptions))
-      .digest('hex');
-    return {
-      buildOptions,
-      entryPoint,
-      buildOptionsHash,
-    };
-  });
-
-  const uniqueBuildhashes = new Set(
+  // Group by unique build option hashes to bundle functions with identical settings together
+  const uniqueBuildHashes = new Set(
     allBuildCombinations.map((b) => b.buildOptionsHash),
   );
 
+  // Bundle each group of functions with identical build options
   await Promise.all(
-    Array.from(uniqueBuildhashes).map(async (buildHash) => {
+    Array.from(uniqueBuildHashes).map(async (buildHash) => {
       const buildCombinations = allBuildCombinations.filter(
         (b) => b.buildOptionsHash === buildHash,
       );
 
       const buildOptions = buildCombinations[0].buildOptions;
-      const entryPoints = buildCombinations
-        .filter((b) => b.buildOptionsHash === buildHash)
-        .map((b) => b.entryPoint);
+      const entryPoints = buildCombinations.map((b) => b.entryPoint);
 
       const normalizedEsbuildArgs = normalizeEsbuildArgs(
         buildOptions.esbuildArgs,
       );
+
       const esBuildOpt: esbuild.BuildOptions = {
         entryPoints,
         bundle: true,
@@ -155,7 +133,6 @@ async function run() {
         drop: normalizedEsbuildArgs?.drop as esbuild.Drop[],
         pure: normalizedEsbuildArgs?.pure,
         logOverride: normalizedEsbuildArgs?.logOverride,
-        //outExtension: buildOptions.outExtension,
 
         // I need this to properly output bundled files
         entryNames: '[dir]/[name]-[hash]/index',
@@ -167,7 +144,7 @@ async function run() {
         Logger.verbose(
           `Bundling with options:`,
           JSON.stringify(esBuildOpt, null, 2),
-          `following functions \n - ${entryPoints.join('\n - ')}`,
+          `following functions:\n - ${entryPoints.join('\n - ')}`,
         );
       } else {
         Logger.log(`Bundling:\n - ${entryPoints.join('\n - ')}`);
@@ -228,18 +205,59 @@ async function run() {
     }),
   );
 
+  // Execute post-bundling commands
   await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
 
   Logger.verbose(
     `All Lambda functions have been built and copied to the output folder. Starting to run regular CDK code`,
   );
 
-  // regular import
+  // Regular import and execution of the compiled CDK code
   await import(pathToFileURL(compileCodeFile).href);
 }
 
 /**
+ * Create build combinations grouped by build options hash for efficient bundling
+ * @param lambdasEsBuildCommands - Array of Lambda bundle configurations
+ * @returns Array of build combinations with hashed build options
+ */
+function createBuildCombinations(lambdasEsBuildCommands: LambdaBundle[]) {
+  return lambdasEsBuildCommands.map((lambdasEsBuildCommand) => {
+    // Create a copy of the command without non-build-related properties
+    const copy: Partial<LambdaBundle> = {
+      ...lambdasEsBuildCommand,
+    };
+
+    // Remove properties that don't affect the build configuration
+    delete copy.outfile;
+    delete copy.command;
+    delete copy.entryPoint;
+    delete copy.out;
+    delete copy.commandBeforeBundling;
+    delete copy.commandAfterBundling;
+
+    const buildOptions: BundleSettings = copy;
+    const entryPoint = lambdasEsBuildCommand.entryPoint;
+
+    // Create a hash of build options to group identical configurations
+    const buildOptionsHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify(buildOptions))
+      .digest('hex');
+
+    return {
+      buildOptions,
+      entryPoint,
+      buildOptionsHash,
+    };
+  });
+}
+
+/**
  * Convert esbuildArgs with CLI-style keys into esbuild options object.
+ * This normalizes command-line style arguments into the format expected by esbuild.
+ * @param esbuildArgs - CLI-style esbuild arguments
+ * @returns Normalized esbuild options object
  */
 export function normalizeEsbuildArgs(
   esbuildArgs: { [key: string]: string | boolean } = {},
@@ -297,19 +315,31 @@ export function normalizeEsbuildArgs(
  */
 async function deleteBundlingTempFolders(): Promise<void> {
   const rootDir = process.cwd();
-
   const cdkOutFolder = path.join(rootDir, 'cdk.out');
-  Logger.verbose(`Deleting bundling temp folders in ${cdkOutFolder}`);
-  const bundlingTempFolders = await fs.readdir(cdkOutFolder);
-  await Promise.all(
-    bundlingTempFolders.map(async (folder) => {
-      const folderPath = path.join(cdkOutFolder, folder);
-      if (folder.startsWith('bundling-temp-')) {
-        Logger.verbose(`Deleting bundling temp folder: ${folderPath}`);
-        await fs.rm(folderPath, { recursive: true, force: true });
-      }
-    }),
-  );
+
+  try {
+    Logger.verbose(`Cleaning bundling temp folders in ${cdkOutFolder}`);
+    const bundlingTempFolders = await fs.readdir(cdkOutFolder);
+
+    await Promise.all(
+      bundlingTempFolders.map(async (folder) => {
+        const folderPath = path.join(cdkOutFolder, folder);
+        if (folder.startsWith('bundling-temp-')) {
+          Logger.verbose(`Deleting bundling temp folder: ${folderPath}`);
+          await fs.rm(folderPath, { recursive: true, force: true });
+        }
+      }),
+    );
+
+    Logger.verbose(`Successfully cleaned bundling temp folders`);
+  } catch (error: any) {
+    // If cdk.out doesn't exist yet, that's fine - we'll create it later
+    if (error.code === 'ENOENT') {
+      // cdk.out folder doesn't exist yet, skipping cleanup
+    } else {
+      throw new Error(`Error cleaning bundling temp folders`, { cause: error });
+    }
+  }
 }
 
 /**
@@ -336,6 +366,12 @@ async function recreateBundlingTempFolders(
   );
 }
 
+/**
+ * Compile CDK TypeScript/JavaScript code into a single executable file
+ * This bundles the CDK code with necessary patches for Lambda function extraction
+ * @param options - Compilation options including root directory and entry file
+ * @returns Path to the compiled CDK code file
+ */
 async function compileCdk({
   rootDir,
   entryFile,
@@ -346,8 +382,8 @@ async function compileCdk({
   const isESM = await isEsm(entryFile);
 
   // Plugin that:
-  // - Fixes __dirname issues
-  // - Injects code to get the file path of the Lambda function and CDK hierarchy
+  // - Fixes __dirname issues in bundled code
+  // - Injects code to extract Lambda function configurations from CDK
   const injectCodePlugin: esbuild.Plugin = {
     name: 'injectCode',
     setup(build: esbuild.PluginBuild) {
@@ -393,7 +429,7 @@ async function compileCdk({
             ? 'js'
             : (fileExtension as esbuild.Loader);
 
-        // Inject code to get the file path of the Lambda function and CDK hierarchy
+        // Inject code to extract Lambda function configurations
         if (
           args.path.includes(
             path.join('aws-cdk-lib', 'aws-lambda-nodejs', 'lib', 'bundling.'),
@@ -493,7 +529,6 @@ async function compileCdk({
 
           Logger.verbose(`Injected code into ${args.path}`);
         } else if (
-          //packages/aws-cdk-lib/core/lib/asset-staging.ts
           args.path.includes(
             path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
           )
@@ -582,6 +617,11 @@ async function compileCdk({
   return compileCodeFile;
 }
 
+/**
+ * Determine if the project uses ES modules based on package.json configuration
+ * @param entryFile - Path to the entry file
+ * @returns True if the project uses ES modules, false otherwise
+ */
 async function isEsm(entryFile: string) {
   let isESM = false;
   const packageJsonPath = await findPackageJson(entryFile);
@@ -593,7 +633,7 @@ async function isEsm(entryFile: string) {
       );
       if (packageJson.type === 'module') {
         isESM = true;
-        Logger.verbose(`Using ESM format`);
+        Logger.verbose(`Using ES modules format`);
       }
     } catch (err: any) {
       Logger.error(
@@ -704,7 +744,7 @@ async function runCdkCodeAndReturnLambdas({
 
     // Handle worker errors
     worker.on('error', (error) => {
-      Logger.error(`Error: ${error.message}`, error);
+      Logger.error(`Worker error: ${error.message}`, error);
       reject(
         new Error(`Error running CDK code in worker: ${error.message}`, {
           cause: error,
@@ -733,7 +773,7 @@ async function runCdkCodeAndReturnLambdas({
     //   Logger.verbose(data.toString().trim());
     // });
 
-    // Send the compiled code file path to the worker
+    // Send the compiled code file path to the worker for execution
     Logger.verbose(`Sending compiled code file to worker: ${compileCodeFile}`);
     worker.postMessage({
       compileOutput: compileCodeFile,
