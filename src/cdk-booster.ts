@@ -451,7 +451,7 @@ async function compileCdk({
           // path to match it with the Lambda function. Store data in the global variable.
 
           //NOTE: This handles diferent versions of CDK. Newer versions use scope
-          // this.props.target ?? (scope ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
+          // target: this.props.target ?? (typeof scope !== "undefined" ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
 
           contents = contents.replace(
             codeToFind,
@@ -467,7 +467,7 @@ async function compileCdk({
                     command: command,
                     entryPoint: relativeEntryPath,
                     out,
-                    target: this.props.target ?? (scope ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
+                    target: this.props.target ?? (typeof scope !== "undefined" ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
                     format: this.props.format,
                     minify: this.props.minify,
                     sourcemap: sourceMapEnabled ? ((this.props.sourceMapMode === 'default' || !this.props.sourceMapMode) ? true : this.props.sourceMapMode) : false,
