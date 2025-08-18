@@ -1,0 +1,94 @@
+{
+  "name": "cdk-booster",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Precompile Node.js AWS Lambda functions in AWS CDK projects to speed up deployments",
+  "homepage": "https://www.cdkbooster.com",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:ServerlessLife/cdk-booster.git"
+  },
+  "license": "MPL-2.0",
+  "author": {
+    "name": "Marko (ServerlessLife.com)",
+    "email": "marko@serverlesslife.com",
+    "organization": false
+  },
+  "exports": {
+    ".": "./dist/index.mjs"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "serverless",
+    "aws-lambda",
+    "javascript",
+    "typescript",
+    "dev-tools",
+    "aws-cdk",
+    "cloud-development",
+    "nodejs"
+  ],
+  "bin": {
+    "cdk-booster": "dist/cdk-booster.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "lint": "eslint . --fix",
+    "prettier": "prettier . --write",
+    "prepare": "husky",
+    "add-bang": "echo '#!/usr/bin/env node' | cat - ./dist/cdk-booster.mjs > ./dist/cdk-booster.mjs.tmp && mv ./dist/cdk-booster.mjs.tmp ./dist/cdk-booster.mjs",
+    "build": "tsc -p tsconfig.build.json && cp src/cdkFrameworkWorker.mjs dist && node fix-imports.js && npm run add-bang",
+    "deploy-github-role": "aws cloudformation deploy --stack-name cdk-booster-deploy-role --template-file cloudformation/gitHubDeployRole.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --profile cdkbooster",
+    "deploy-tests": "npm run deploy --workspaces --if-present --parallel",
+    "test:deploy-original": "cd test/cdk-basic && npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"npx ts-node --prefer-ts-exts bin/cdk-basic.ts\" && npm run deploy 2>&1 | tee cdk-original.log",
+    "test:check-bundling": "cd test/cdk-basic && ../../scripts/check-bundling.sh cdk-original.log true",
+    "test:save-original-state": "cd test/cdk-basic && npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json",
+    "test:deploy-booster": "cd test/cdk-basic && npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"node ../../dist/cdk-booster.mjs bin/cdk-basic.ts\" && npm run deploy 2>&1 | tee cdk-booster.log",
+    "test:check-no-bundling": "cd test/cdk-basic && ../../scripts/check-bundling.sh cdk-booster.log false",
+    "test:save-booster-state": "cd test/cdk-basic && npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-booster-function-files.json",
+    "test:compare-states": "cd test/cdk-basic && npx tsx ../../scripts/compare-states.ts cdk-original-function-files.json cdk-booster-function-files.json",
+    "test": "npm run build && npm run test:deploy-original && npm run test:check-bundling && npm run test:save-original-state && npm run test:deploy-booster && npm run test:check-no-bundling && npm run test:save-booster-state && npm run test:compare-states",
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@tsconfig/node22": "^22.0.2",
+    "@types/eslint-config-prettier": "^6.11.3",
+    "@types/node": "^24.1.0",
+    "aws-cdk": "2.1022.0",
+    "aws-cdk-lib": "2.207.0",
+    "constructs": "^10.4.2",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.3.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.6.2",
+    "semantic-release": "^24.2.7",
+    "tsx": "^4.20.3",
+    "typescript-eslint": "^8.38.0",
+    "vitepress": "^1.6.3",
+    "@aws-sdk/client-lambda": "^3.851.0",
+    "adm-zip": "^0.5.16",
+    "@types/adm-zip": "^0.5.7"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^14.0.0",
+    "typescript": "~5.8.3"
+  },
+  "peerDependencies": {
+    "esbuild": "^0"
+  },
+  "bundleDependencies": [
+    "chalk",
+    "commander"
+  ],
+  "workspaces": [
+    "test",
+    "test/cdk-basic",
+    "test/cdk-esm"
+  ]
+}

@@ -1,0 +1,109 @@
+name: Common CI tests
+
+run-name: 'Test: mode=${{ inputs.mode }}, testMonorepo=${{ inputs.testMonorepo }}'
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "'build' (just builded code, used while publishing) or 'global' (real NPM installed globally) or 'local' (real NPM installed locally)"
+        type: string
+        required: true
+      version:
+        description: 'Specify the version of the package'
+        type: string
+        required: false
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  REAL_NPM: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
+  node_version: 22
+
+jobs:
+  test-cdk-basic:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: test-cdk-basic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.node_version }}
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install dependencies
+        run: npm i
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        if: ${{ inputs.mode == 'build' }}
+        with:
+          name: dist
+          path: dist
+      - name: Install cdk-booster globally
+        if: ${{ inputs.mode == 'global' }}
+        run: |
+          npm i cdk-booster@${{ inputs.version || 'latest' }} -g
+        working-directory: test
+      - name: Install cdk-booster locally
+        if: ${{ inputs.mode == 'local' }}
+        run: |
+          npm i cdk-booster@${{ inputs.version || 'latest' }}
+        working-directory: test
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-west-1
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHubActions
+      # - name: Destroy
+      #   run: npm run destroy
+      #   working-directory: test/cdk-basic
+      #   continue-on-error: true
+      - name: Deploy CDK original
+        run: |
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
+          set -o pipefail
+          npm run deploy 2>&1 | tee cdk-original.log
+        working-directory: test/cdk-basic
+      - name: Check there was bundling
+        run: |
+          ../../scripts/check-bundling.sh cdk-original.log true
+        working-directory: test/cdk-basic
+      - name: Save CDK original state
+        run: |
+          npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json
+        working-directory: test/cdk-basic
+      - name: Deploy via cdk-booster (build mode)
+        if: ${{ inputs.mode == 'build' }}
+        run: |
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
+          set -o pipefail
+          npm run deploy 2>&1 | tee cdk-booster.log
+        working-directory: test/cdk-basic
+      - name: Deploy via cdk-booster (global or local mode)
+        if: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
+        run: |
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts"
+          set -o pipefail
+          npm run deploy 2>&1 | tee cdk-booster.log
+        working-directory: test/cdk-basic
+      - name: Check there was no bundling
+        run: |
+          cat cdk-booster.log
+          ../../scripts/check-bundling.sh cdk-booster.log false
+        working-directory: test/cdk-basic
+      - name: Save cdk-booster state
+        run: |
+          npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-booster-function-files.json
+        working-directory: test/cdk-basic
+      - name: Compare CDK original and cdk-booster states
+        run: |
+          npx tsx ../../scripts/compare-states.ts cdk-original-function-files.json cdk-booster-function-files.json
+        working-directory: test/cdk-basic
+      - name: Another deploy via cdk-booster, because it could fail if repeated
+        run: |
+          npm run deploy
+        working-directory: test/cdk-basic
