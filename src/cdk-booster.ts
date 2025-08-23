@@ -27,11 +27,13 @@ import { existsSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 
 const execAsync = promisify(exec);
+type EsBuildOutputs = esbuild.Metafile['outputs'];
 
 /**
  * Start the CDK Booster
  */
 async function run() {
+  let copyAgainFunction: (() => Promise<void>) | undefined;
   const version = await getVersion();
 
   Logger.log(`Welcome to CDK Booster 🚀 version ${version}.`);
@@ -51,9 +53,6 @@ async function run() {
   const config = Configuration.config;
   const rootDir = process.cwd();
 
-  // Clean up any existing bundling temp folders before starting
-  await deleteBundlingTempFolders();
-
   Logger.verbose(`Compiling CDK code from ${config.entryFile}`);
 
   const compileCodeFile = await compileCdk({
@@ -62,30 +61,81 @@ async function run() {
   });
 
   Logger.verbose(
-    `Compiled CDK code to ${compileCodeFile}. Running the CDK code to extract Lambda functions`,
+    ` Running the CDK code ${compileCodeFile} to extract Lambda functions.`,
   );
 
-  const lambdas = await runCdkCodeAndReturnLambdas({
-    config,
-    compileCodeFile,
-  });
+  const secondRun = await isSecondRun();
 
   Logger.verbose(
-    `Found ${lambdas.length} Lambda functions in the CDK code:`,
-    JSON.stringify(lambdas, null, 2),
+    secondRun ? `This is the second run.` : `This is the first run.`,
   );
 
-  const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
+  if (!secondRun) {
+    // Clean up any existing bundling temp folders before starting
+    await deleteBundlingTempFolders();
 
-  // Prepare bundling temp folders for each Lambda function
-  await recreateBundlingTempFolders(lambdasEsBuildCommands);
+    const { lambdas, missing } = await runCdkCodeAndReturnLambdas({
+      config,
+      compileCodeFile,
+    });
 
-  // Execute pre-bundling commands
-  await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
+    Logger.verbose(
+      `Found ${lambdas.length} Lambda functions in the CDK code:`,
+      JSON.stringify(lambdas, null, 2),
+    );
 
+    const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
+
+    // Prepare bundling temp folders for each Lambda function
+    await recreateBundlingTempFolders(lambdasEsBuildCommands);
+
+    // Execute pre-bundling commands
+    await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
+
+    const outputs: EsBuildOutputs = await bundle(lambdasEsBuildCommands);
+
+    // move files to the output folder
+    await copyFilesToOutput(lambdasEsBuildCommands, outputs);
+
+    // Execute post-bundling commands
+    await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
+
+    if (missing) {
+      copyAgainFunction = async () => {
+        await recreateBundlingTempFolders(lambdasEsBuildCommands);
+        await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
+        await copyFilesToOutput(lambdasEsBuildCommands, outputs);
+        await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
+      };
+    }
+
+    Logger.log(
+      `All Lambda functions have been built and copied to the output folder.`,
+    );
+  }
+
+  Logger.log(`Starting to run regular CDK code.`);
+
+  // Regular import and execution of the compiled CDK code
+  await import(pathToFileURL(compileCodeFile).href);
+
+  if (copyAgainFunction) {
+    Logger.verbose(
+      `Some resources are missing and need to be looked up. The synth process will run again. Assets will be copied again to avoid re-bundling.`,
+    );
+    await copyAgainFunction();
+  }
+}
+
+/**
+ * Bundle Lambda functions using esbuild
+ * @param lambdasEsBuildCommands - Array of Lambda bundle configurations
+ * @returns esbuild metafile outputs mapping
+ */
+async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
   const tempFolder = path.resolve(path.join(outputFolder, 'bundle'));
 
-  let outputs: esbuild.Metafile['outputs'] = {};
+  let outputs: EsBuildOutputs = {};
 
   // Create build combinations grouped by identical build options to optimize bundling
   const allBuildCombinations = createBuildCombinations(lambdasEsBuildCommands);
@@ -160,7 +210,18 @@ async function run() {
   );
   Logger.log(`All functions have been bundled.`);
 
-  // move files to the output folder
+  return outputs;
+}
+
+/**
+ * Copy built files from esbuild output to the cdk.out/bundling-temp-* folders
+ * @param lambdasEsBuildCommands - Array of Lambda bundle configurations
+ * @param outputs - esbuild metafile outputs mapping
+ */
+async function copyFilesToOutput(
+  lambdasEsBuildCommands: LambdaBundle[],
+  outputs: EsBuildOutputs,
+) {
   await Promise.all(
     lambdasEsBuildCommands.map(async (lambdasEsBuildCommand) => {
       let esBuildOutput: string | undefined;
@@ -206,15 +267,26 @@ async function run() {
     }),
   );
 
-  // Execute post-bundling commands
-  await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
+  Logger.log(`All built files have been copied to the output folders.`);
+}
 
-  Logger.log(
-    `All Lambda functions have been built and copied to the output folder. Starting to run regular CDK code`,
-  );
+/**
+ * Check if this is the second run of the CDK Booster
+ * @returns True if this is the second run, false otherwise
+ */
+async function isSecondRun() {
+  // second run is if there is cdk.out/manifest.json file with node missing
+  const manifestPath = path.join(process.cwd(), 'cdk.out', 'manifest.json');
+  const manifestExists = await fs
+    .access(manifestPath)
+    .then(() => true)
+    .catch(() => false);
 
-  // Regular import and execution of the compiled CDK code
-  await import(pathToFileURL(compileCodeFile).href);
+  if (!manifestExists) return false;
+
+  const manifestRaw = await fs.readFile(manifestPath, { encoding: 'utf-8' });
+  const manifest = JSON.parse(manifestRaw);
+  return !!manifest.missing;
 }
 
 /**
@@ -530,6 +602,23 @@ async function compileCdk({
 
           Logger.verbose(`Injected code into ${args.path}`);
         } else if (
+          args.path.includes(path.join('aws-cdk-lib', 'core', 'lib', 'app.'))
+        ) {
+          const codeToFind =
+            ',policyValidationBeta1:props.policyValidationBeta1});';
+
+          if (!contents.includes(codeToFind)) {
+            throw new Error(`Can not find code to inject in ${args.path}`);
+          }
+
+          // make CDK app available
+          contents = contents.replace(
+            codeToFind,
+            codeToFind + `global.cdkApp = this;`,
+          );
+
+          Logger.verbose(`Injected code into ${args.path}`);
+        } else if (
           args.path.includes(
             path.join('aws-cdk-lib', 'core', 'lib', 'asset-staging.'),
           )
@@ -544,6 +633,10 @@ async function compileCdk({
           contents = contents.replace(
             codeToFind,
             `
+            if (process.env.CDK_BOOSTER_SKIP === 'true') {
+              console.log('[🚀 CDK Booster]', "Skipping asset bundling");
+              return;
+            }
             if(fs().existsSync(bundleDir)) {
               if (process.env.CDK_BOOSTER_INSPECT !== 'true') {
                 console.log('[🚀 CDK Booster]', "😀 Function " + options.relativeEntryPath + " was prebundled");
@@ -719,73 +812,77 @@ async function runCdkCodeAndReturnLambdas({
     `Running CDK code in worker thread to extract Lambda configurations`,
   );
 
-  const lambdas: any[] = await new Promise((resolve, reject) => {
-    const workerPath = pathToFileURL(
-      path.resolve(path.join(getModuleDirname(), 'cdkFrameworkWorker.mjs')),
-    ).href;
+  const workerResults: { lambdas: any[]; missing: boolean } = await new Promise(
+    (resolve, reject) => {
+      const workerPath = pathToFileURL(
+        path.resolve(path.join(getModuleDirname(), 'cdkFrameworkWorker.mjs')),
+      ).href;
 
-    Logger.verbose(`Starting worker thread from: ${workerPath}`);
+      Logger.verbose(`Starting worker thread from: ${workerPath}`);
 
-    const worker = new Worker(new URL(workerPath), {
-      workerData: {
-        verbose: config.verbose,
-        projectDirname: getProjectDirname(),
-        moduleDirname: getModuleDirname(),
-      },
-    });
+      const worker = new Worker(new URL(workerPath), {
+        workerData: {
+          verbose: config.verbose,
+          projectDirname: getProjectDirname(),
+          moduleDirname: getModuleDirname(),
+        },
+      });
 
-    // Handle successful completion
-    worker.on('message', async (message) => {
+      // Handle successful completion
+      worker.on('message', async (message) => {
+        Logger.verbose(
+          `Worker completed successfully, found ${message.length} Lambda functions`,
+        );
+        resolve(message);
+        await worker.terminate();
+      });
+
+      // Handle worker errors
+      worker.on('error', (error) => {
+        Logger.error(`Worker error: ${error.message}`, error);
+        reject(
+          new Error(`Error running CDK code in worker: ${error.message}`, {
+            cause: error,
+          }),
+        );
+      });
+
+      // Handle worker exit
+      // worker.on('exit', (code) => {
+      //   if (code !== 0) {
+      //     const errorMessage = `CDK worker stopped with exit code ${code}`;
+      //     Logger.error(`${errorMessage}`);
+      //     reject(new Error(errorMessage));
+      //   } else {
+      //     Logger.verbose(`Worker exited successfully`);
+      //   }
+      // });
+
+      // Forward worker stdout to main process
+      // worker.stdout.on('data', (data: Buffer) => {
+      //   Logger.log(data.toString().trim());
+      // });
+
+      // Forward worker stderr to main process
+      // worker.stderr.on('data', (data: Buffer) => {
+      //   Logger.verbose(data.toString().trim());
+      // });
+
+      // Send the compiled code file path to the worker for execution
       Logger.verbose(
-        `Worker completed successfully, found ${message.length} Lambda functions`,
+        `Sending compiled code file to worker: ${compileCodeFile}`,
       );
-      resolve(message);
-      await worker.terminate();
-    });
-
-    // Handle worker errors
-    worker.on('error', (error) => {
-      Logger.error(`Worker error: ${error.message}`, error);
-      reject(
-        new Error(`Error running CDK code in worker: ${error.message}`, {
-          cause: error,
-        }),
-      );
-    });
-
-    // Handle worker exit
-    // worker.on('exit', (code) => {
-    //   if (code !== 0) {
-    //     const errorMessage = `CDK worker stopped with exit code ${code}`;
-    //     Logger.error(`${errorMessage}`);
-    //     reject(new Error(errorMessage));
-    //   } else {
-    //     Logger.verbose(`Worker exited successfully`);
-    //   }
-    // });
-
-    // Forward worker stdout to main process
-    // worker.stdout.on('data', (data: Buffer) => {
-    //   Logger.log(data.toString().trim());
-    // });
-
-    // Forward worker stderr to main process
-    // worker.stderr.on('data', (data: Buffer) => {
-    //   Logger.verbose(data.toString().trim());
-    // });
-
-    // Send the compiled code file path to the worker for execution
-    Logger.verbose(`Sending compiled code file to worker: ${compileCodeFile}`);
-    worker.postMessage({
-      compileOutput: compileCodeFile,
-    });
-  });
-
-  Logger.verbose(
-    `Successfully extracted ${lambdas.length} Lambda function configurations from CDK code`,
+      worker.postMessage({
+        compileOutput: compileCodeFile,
+      });
+    },
   );
 
-  return lambdas as {
+  Logger.verbose(
+    `Successfully extracted ${workerResults.lambdas.length} Lambda function configurations from CDK code`,
+  );
+
+  const lambdas = workerResults.lambdas as {
     cdkPath: string;
     stackName: string;
     codePath?: string;
@@ -796,6 +893,8 @@ async function runCdkCodeAndReturnLambdas({
     packageJsonPath: string;
     bundling: BundlingOptions;
   }[];
+
+  return { lambdas, missing: workerResults.missing };
 }
 
 /**
@@ -803,6 +902,7 @@ async function runCdkCodeAndReturnLambdas({
  * deleting the destination folder first.
  * @param src - The source folder path
  * @param dest - The destination folder path
+ * @param entryOutputFilename - The expected output filename pattern for fixing extensions
  */
 async function copyFolderRecursive(
   src: string,

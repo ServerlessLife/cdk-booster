@@ -48,14 +48,18 @@ function main(): void {
   const count = text.split(TARGET_LINE).length - 1;
 
   if (count === 1) {
-    console.log(`✅ OK: Found the line exactly once in "${logPath}".`);
+    console.log(
+      `✅ OK: Found the line "${TARGET_LINE}" exactly once in "${logPath}".`,
+    );
     process.exit(0);
   } else if (count === 0) {
-    console.error(`❌ FAIL: The line was not found in "${logPath}".`);
+    console.error(
+      `❌ FAIL: The line "${TARGET_LINE}" was not found in "${logPath}".`,
+    );
     process.exit(1);
   } else {
     console.error(
-      `❌ FAIL: The line appears ${count} times in "${logPath}" (expected exactly 1).`,
+      `❌ FAIL: The line "${TARGET_LINE}" appears ${count} times in "${logPath}" (expected exactly 1).`,
     );
     process.exit(1);
   }

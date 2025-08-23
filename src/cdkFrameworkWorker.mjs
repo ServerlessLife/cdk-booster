@@ -19,6 +19,9 @@ parentPort.on('message', async (data) => {
     // execute code to get the data into global.lambdas
     await import(pathToFileURL(data.compileOutput).href);
 
+    const cloudAssembly = await global.cdkApp.synth();
+    const missing = !!cloudAssembly.manifest.missing;
+
     if (!global.lambdas || global.lambdas?.length === 0) {
       throw new Error('No Lambda functions found in the CDK code');
     }
@@ -26,10 +29,15 @@ parentPort.on('message', async (data) => {
     const lambdas = global.lambdas;
 
     Logger.verbose(
-      `[CDK] [Worker] Sending found Lambdas`,
+      `[Worker] Sending found Lambdas`,
       JSON.stringify(lambdas, null, 2),
     );
-    parentPort.postMessage(lambdas);
+    Logger.verbose(
+      `[Worker] ${missing ? 'Some resources are missing and need to be looked up. Synth will have to be run twice.' : 'All resources are resolved.'}`,
+    );
+
+    // send the data back to the main thread
+    parentPort.postMessage({ lambdas, missing });
   } catch (error) {
     Logger.error(`[CDK Worker] Error`, error);
     throw error;
@@ -37,5 +45,5 @@ parentPort.on('message', async (data) => {
 });
 
 process.on('unhandledRejection', (error) => {
-  Logger.error(`[CDK] [Worker] Unhandled Rejection`, error);
+  Logger.error(`[Worker] Unhandled Rejection`, error);
 });
