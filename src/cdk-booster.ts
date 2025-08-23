@@ -158,6 +158,7 @@ async function run() {
       };
     }),
   );
+  Logger.log(`All functions have been bundled.`);
 
   // move files to the output folder
   await Promise.all(

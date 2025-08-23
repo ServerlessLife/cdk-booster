@@ -56,6 +56,19 @@ Resources:
                   - lambda:InvokeFunction
                 Resource: '*'
 
+        - PolicyName: EC2Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeVpnGateways
+                Resource: '*'
+
         - PolicyName: CDKBootstrapPolicy
           PolicyDocument:
             Version: '2012-10-17'

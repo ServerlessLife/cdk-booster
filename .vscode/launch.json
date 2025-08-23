@@ -12,7 +12,11 @@
       "skipFiles": ["<node_internals>/**"],
       "console": "integratedTerminal",
       "type": "node",
-      "cwd": "${workspaceRoot}/test/cdk-basic"
+      "cwd": "${workspaceRoot}/test/cdk-basic",
+      "env": {
+        "CDK_DEFAULT_ACCOUNT": "076585967075",
+        "CDK_DEFAULT_REGION": "eu-west-1"
+      }
     }
   ]
 }

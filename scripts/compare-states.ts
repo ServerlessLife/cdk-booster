@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Lambda States Comparison Script
  *
