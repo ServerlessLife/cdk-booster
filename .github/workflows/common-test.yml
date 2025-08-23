@@ -94,14 +94,14 @@ jobs:
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
-      - name: Check there was no bundling
-        run: |
-          cat cdk-booster.log
-          ../../scripts/check-bundling.sh cdk-booster.log false
-        working-directory: test/cdk-basic
       - name: Check there was not double prebundling
         run: |
+          cat cdk-booster.log
           npx tsx ../../scripts/check-double-prebundle.ts cdk-booster.log
+        working-directory: test/cdk-basic
+      - name: Check there was no bundling
+        run: |
+          ../../scripts/check-bundling.sh cdk-booster.log false
         working-directory: test/cdk-basic
       - name: Save cdk-booster state
         run: |
