@@ -208,7 +208,7 @@ async function run() {
   // Execute post-bundling commands
   await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
 
-  Logger.verbose(
+  Logger.log(
     `All Lambda functions have been built and copied to the output folder. Starting to run regular CDK code`,
   );
 

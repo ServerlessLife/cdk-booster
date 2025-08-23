@@ -18,8 +18,16 @@ if (!environment) {
 
 new CdkbasicStack(app, 'CdkbasicStack', {
   stackName: `${environment}-cdkbooster-cdk-basic`,
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION,
+  },
 });
 
 new CdkbasicStack2(app, 'CdkbasicStack2', {
   stackName: `${environment}-cdkbooster-cdk-basic2`,
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION,
+  },
 });

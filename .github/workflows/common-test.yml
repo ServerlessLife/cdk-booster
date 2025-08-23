@@ -79,6 +79,8 @@ jobs:
       - name: Deploy via cdk-booster (build mode)
         if: ${{ inputs.mode == 'build' }}
         run: |
+          rm -rf cdk.out
+          rm -f cdk.context.json
           npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
@@ -86,6 +88,8 @@ jobs:
       - name: Deploy via cdk-booster (global or local mode)
         if: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
         run: |
+          rm -rf cdk.out
+          rm -f cdk.context.json
           npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
@@ -105,5 +109,7 @@ jobs:
         working-directory: test/cdk-basic
       - name: Another deploy via cdk-booster, because it could fail if repeated
         run: |
+          rm -rf cdk.out
+          rm -f cdk.context.json
           npm run deploy
         working-directory: test/cdk-basic

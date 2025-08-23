@@ -6,3 +6,5 @@ cdk-booster-function-files.json
 cdk-original-function-files.json
 cdk-original.log
 cdk-booster.log
+# I do not include the cdk.context.json file so I can test double synth in CDK
+cdk.context.json

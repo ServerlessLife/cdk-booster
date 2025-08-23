@@ -2,11 +2,17 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as path from 'path';
 
 export class CdkbasicStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // Import default VPC
+    const defaultVpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', {
+      isDefault: true,
+    });
 
     const functionTestTsCommonJs = new lambda_nodejs.NodejsFunction(
       this,
@@ -98,6 +104,10 @@ export class CdkbasicStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'FunctionNameTestJsCommonJs', {
       value: functionTestJsCommonJs.functionName,
+    });
+
+    new cdk.CfnOutput(this, 'DefaultVpcId', {
+      value: defaultVpc.vpcId,
     });
   }
 }
