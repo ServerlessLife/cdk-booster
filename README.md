@@ -1,37 +1,34 @@
 # ![CDK Booster](public/logo_landscape_light.svg)
 
-**Supercharge your AWS CDK builds with parallel TypeScript Lambda bundling**
+**CDK Booster speeds up to 3 times by the CDK framework's bundling of TypeScript or JavaScript code for Lambda handlers.**
 
-_Stop waiting for TypeScript compilation. Start deploying faster._
+One of the major downsides of CDK is that all operations are done sequentially. That included bundling code for Lambda handlers; because of that, bundling can be extremely slow for a large project.
 
-## 🚀 Transform Your TypeScript Development Workflow
+CDK Booster bundles all Lambdas at once and produces separate assets for Lambda handlers exactly the same as the CDK framework. It is extremely useful for large projects with lots of Lambda functions. It does not make a huge difference for small projects. Note that bundinling is usualy not the slowes part of deployment. Most of the time is usually spent on deploying CloudFormation. CDK Booster speeds up only bundling.
 
-Tired of watching your CDK builds crawl through TypeScript Lambda function compilation? **CDK Booster dramatically improves your build process** by bundling all TypeScript Lambda functions in parallel instead of the default sequential approach.
+CDK Booster also detects if synthesis is run twice. That happens if some resources are unresolved and a lookup is needed. In that case, synthesis is run twice, including bundling. CDK Booster detects that and avoids bundling Lambda handlers twice.
 
-### ⚡ Key Benefits
+CDK Booster is a drop-in replacement. No code changes are needed, except installation of CDK Booster and modifying the cdk.json file to point to CDK Booster.
+
+### Key Benefits
 
 - **3x faster builds** for TypeScript Lambda projects
-- **Zero configuration changes** to your existing TypeScript Lambda code
+- **Avoid double bundling**
 - **Drop-in replacement** for your current CDK setup
-- **Powered by ESBuild** for lightning-fast TypeScript compilation
 
-## 📦 Quick Start
-
-Get up and running in under 60 seconds:
+## Installation
 
 ```bash
-npm install -g cdk-booster
+npm install cdk-booster
 ```
 
-## 🔧 Simple Setup
-
-Transform your build process with one simple change in `cdk.json`:
+Mofify `cdk.json`:
 
 **Replace this:**
 
 ```json
 {
-  "app": "npx ts-node --prefer-ts-exts bin/cdk-app.ts"
+  "app": "npx ts-node --prefer-ts-exts bin/your_app.ts"
 }
 ```
 
@@ -39,22 +36,11 @@ Transform your build process with one simple change in `cdk.json`:
 
 ```json
 {
-  "app": "npx cdk-booster bin/cdk-app.ts"
+  "app": "npx cdk-booster bin/your_app.ts"
 }
 ```
 
-That's it! Your next deployment will be significantly faster.
-
-## 👥 Perfect For TypeScript Projects
-
-✅ **Large-scale TypeScript projects** with multiple Lambda functions \
-✅ **TypeScript development teams** seeking faster iteration cycles \
-✅ **DevOps engineers** optimizing TypeScript Lambda CI/CD pipelines \
-✅ **Projects using TypeScript `NodejsFunction`** from `aws-cdk-lib/aws-lambda-nodejs` \
-
-⚠️ **Note:** CDK Booster is designed specifically for TypeScript Lambda functions. JavaScript-only Lambda functions are not supported.
-
-### Example
+All functions that are created with the `NodejsFunction` construct are bundled using CDK Booster.
 
 ```typescript
 import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -69,19 +55,41 @@ const functionTestJsEsModule = new lambda_nodejs.NodejsFunction(
 );
 ```
 
-## 📈 Real Performance Impact
+## How it works.
 
-**Before CDK Booster:** Each TypeScript Lambda function waits for the previous one to complete compilation
-**After CDK Booster:** All TypeScript Lambda functions compile simultaneously
+CDK Booster works in multiple phases
 
-Experience up to **3x speed improvement** in your TypeScript compilation phase, turning minutes of waiting into seconds of productivity.
+1. **Transpiling CDK code**
 
-## 🛠️ How The Magic Happens
+CDK Booster transpiles CDK code using ESBuild and injects some additional code to find all Lambdas that are in the project and their prebuild and postbuild commands.
 
-CDK Booster uses an intelligent two-pass compilation strategy for TypeScript:
+2. **Running CDK code in Node Worker threads**
 
-1. **Discovery Phase** - Analyzes your CDK code to identify all TypeScript Lambda functions
-2. **Parallel TypeScript Compilation** - Bundles all Lambda TypeScript code simultaneously using ESBuild
-3. **Execution Phase** - Runs your CDK deployment with pre-compiled TypeScript assets
+Transpiled code is then run in a Worker. The injected code makes it possible to get the Lambdas.
 
-This approach leverages CDK's built-in caching mechanisms while dramatically reducing build times.
+3. **Lambda handlers transpilation**
+
+Bundles all Lambda TypeScript code simultaneously using ESBuild. Buundling evernthing in one go is possible using ESBuild multiple entry points. The assets are dropped in cdk.out/bundling-temp-\* folder, where they can be picked up by CDK.
+
+4. **Regular CDK execution Phase**
+
+In the last phase, the regular CDK is executed regularly. It detects that assets have already been prepared, so it skips bunding.
+
+5. **Prepare assets again**
+
+If some resources are unresolved and a lookup would be needed, the CDK would be run again, including the bootstrapping. CDK Booster detectct that and copy already prepare already tranpiled assets agen into cdk.out/bundling-temp-\* folder.
+
+## Authors
+
+- [Marko (ServerlessLife)](https://www.serverlesslife.com/)
+- ⭐ Your name here for big code contributions.
+
+## Contributors
+
+(alphabetical)
+
+- ⭐ Your name here for notable code or documentation contributions or sample projects submitted with a bug report that resulted in tool improvement.
+
+## Disclaimer
+
+Lambda Live Debugger is provided "as is," without warranty of any kind, expressed or implied. Use it at your own risk, and be mindful of potential impacts on performance, security, and costs when using it in your AWS environment.

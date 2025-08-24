@@ -85,6 +85,7 @@ Resources:
                   - iam:PutRolePolicy
                   - iam:TagRole
                   - iam:PassRole
+                  - iam:UpdateAssumeRolePolicy
                 Resource:
                   - Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/cdk-hnb659fds-cfn-exec-role-*
                   - Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-*
