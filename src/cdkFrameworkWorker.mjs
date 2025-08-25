@@ -20,6 +20,7 @@ parentPort.on('message', async (data) => {
     await import(pathToFileURL(data.compileOutput).href);
 
     const cloudAssembly = await global.cdkApp.synth();
+    global.cdkApp.synth = () => undefined; // prevent call
     const missing = !!cloudAssembly.manifest.missing;
 
     if (!global.lambdas || global.lambdas?.length === 0) {
