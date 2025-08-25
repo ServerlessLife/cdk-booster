@@ -18,9 +18,8 @@ CDK Booster is a drop-in replacement requiring no code changes - only installati
 
 ## Installation
 
-"`bash
+```bash
 npm install cdk-booster
-
 ```
 
 ### Setup
@@ -29,7 +28,7 @@ Modify your `cdk.json` file:
 
 **Replace this:**
 
-"`json
+```json
 {
   "app": "npx ts-node --prefer-ts-exts bin/your_app.ts"
 }
@@ -37,26 +36,25 @@ Modify your `cdk.json` file:
 
 **With this:**
 
-"`json
+```json
 {
-"app": "npx cdk-booster bin/your_app.ts"
+  "app": "npx cdk-booster bin/your_app.ts"
 }
-
 ```
 
 ### Usage
 
 All functions created with the `NodejsFunction` construct are automatically bundled using CDK Booster:
 
-"`typescript
+```typescript
 import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 
 const functionTestJsEsModule = new lambda_nodejs.NodejsFunction(
   this,
   'TestJsEsModule',
- {
- entry: 'lambda.ts',
- },
+  {
+    entry: 'lambda.ts',
+  },
 );
 ```
 
