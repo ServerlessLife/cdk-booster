@@ -1,6 +1,6 @@
 # ![CDK Booster](public/logo_landscape_light.svg)
 
-**CDK Booster speeds up AWS CDK's bundling of TypeScript/JavaScript Lambda handlers**
+**Speed up AWS CDK's bundling of TypeScript/JavaScript Lambda handlers**
 
 One of the major downsides of CDK is that all operations are performed sequentially, including bundling code for Lambda handlers. This makes bundling extremely slow for large projects with many Lambda functions.
 
@@ -16,13 +16,11 @@ CDK Booster is a drop-in replacement requiring no code changes - only installati
 - **Drop-in replacement** for your current CDK setup
 - **Avoids double bundling** when synthesis runs multiple times
 
-## Installation
+## Setup
 
 ```bash
 npm install cdk-booster
 ```
-
-### Setup
 
 Modify your `cdk.json` file:
 
@@ -41,8 +39,6 @@ Modify your `cdk.json` file:
   "app": "npx cdk-booster bin/your_app.ts"
 }
 ```
-
-### Usage
 
 All functions created with the `NodejsFunction` construct are automatically bundled using CDK Booster:
 

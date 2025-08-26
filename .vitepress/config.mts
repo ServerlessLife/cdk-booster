@@ -48,24 +48,11 @@ export default defineConfig({
       dark: '/logo_dark.svg',
     },
     sidebar: [
-      {
-        text: 'Introduction',
-        collapsed: false,
-        items: [
-          { text: 'Key Benefits', link: '#key-benefits' },
-          { text: 'How It Works', link: '#how-it-works' },
-          { text: 'Requirements', link: '#requirements' },
-        ],
-      },
-      {
-        text: 'Getting Started',
-        collapsed: false,
-        items: [
-          { text: 'Installation', link: '#installation' },
-          { text: 'Setup', link: '#setup' },
-          { text: 'Usage', link: '#usage' },
-        ],
-      },
+      { text: 'Introduction', link: '#' },
+      { text: 'Key Benefits', link: '#key-benefits' },
+      { text: 'Setup', link: '#setup' },
+      { text: 'How It Works', link: '#how-it-works' },
+      { text: 'Requirements', link: '#requirements' },
       { text: 'Authors', link: '#authors' },
       { text: 'Contributors', link: '#contributors' },
       { text: 'Disclaimer', link: '#disclaimer' },
