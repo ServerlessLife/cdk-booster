@@ -79,9 +79,8 @@ export class CdkbasicStack extends cdk.Stack {
         bundling: {
           commandHooks: {
             beforeBundling(inputDir: string, outputDir: string): string[] {
-              return [
-                `cp ${path.join(inputDir, 'test/cdk-basic/services/test.txt')} ${outputDir}`,
-              ];
+              // trying relative path without inputDir
+              return [`cp test/cdk-basic/services/test.txt ${outputDir}`];
             },
             beforeInstall(): string[] {
               return [];
