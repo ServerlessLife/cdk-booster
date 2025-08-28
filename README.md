@@ -76,7 +76,7 @@ CDK Booster uses ESBuild to transpile/compile your CDK code and injects addition
 
 The transpiled code runs in Node.js worker threads. The injected code enables the discovery of Lambda functions.
 
-3. **Lambda handlers transpilation**
+3. **Lambda handlers bundling**
 
 All Lambda TypeScript/JavaScript code is bundled simultaneously using ESBuild's multiple entry points feature. This approach is what provides the significant speed improvement. Bundled assets are placed in the `cdk.out/bundling-temp-*` folders for CDK to consume.
 
@@ -90,7 +90,7 @@ If CDK needs to run synthesis again (due to unresolved resources requiring looku
 
 ## Requirements
 
-- AWS CDK v2.x
+- AWS CDK v2.x with TypeScript
 - TypeScript or JavaScript Lambda handlers using `NodejsFunction` construct
 
 ## Authors
