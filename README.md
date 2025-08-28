@@ -54,6 +54,16 @@ const functionTestJsEsModule = new lambda_nodejs.NodejsFunction(
 );
 ```
 
+### Verbose Logging
+
+To enable verbose logging for debugging purposes, add the `-v` parameter:
+
+```json
+{
+  "app": "npx cdk-booster bin/your_app.ts -v"
+}
+```
+
 ## How It Works
 
 CDK Booster operates through a multi-phase process:
