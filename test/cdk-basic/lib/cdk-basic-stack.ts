@@ -24,6 +24,9 @@ export class CdkbasicStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         //logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
+          environment: {
+            TEST: 'TEST1',
+          },
           commandHooks: {
             beforeBundling(): string[] {
               return [];
@@ -33,6 +36,9 @@ export class CdkbasicStack extends cdk.Stack {
             },
             afterBundling(inputDir: string, outputDir: string): string[] {
               return [
+                // command that checks the environment variable and shows a message if not equal
+                `if [ "$TEST" != "TEST1" ]; then echo "TEST env var is not set to TEST1"; exit 1; fi`,
+
                 `cp ${path.join(inputDir, 'test/cdk-basic/services/test.txt')} ${outputDir}`,
               ];
             },
@@ -75,12 +81,23 @@ export class CdkbasicStack extends cdk.Stack {
         entry: 'services/testJsCommonJs/lambda.js',
         handler: 'lambdaHandler',
         runtime: lambda.Runtime.NODEJS_22_X,
+        environment: {
+          TEST: 'TEST',
+        },
         //logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
+          environment: {
+            TEST: 'TEST2',
+          },
           commandHooks: {
             beforeBundling(inputDir: string, outputDir: string): string[] {
               // trying relative path without inputDir
-              return [`cp test/cdk-basic/services/test.txt ${outputDir}`];
+              return [
+                // command that checks the environment variable
+                `if [ "$TEST" != "TEST2" ]; then echo "TEST env var is not set to TEST2"; exit 1; fi`,
+
+                `cp test/cdk-basic/services/test.txt ${outputDir}`,
+              ];
             },
             beforeInstall(): string[] {
               return [];

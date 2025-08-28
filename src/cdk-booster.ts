@@ -17,16 +17,15 @@ import { findPackageJson } from './utils/findPackageJson.js';
 import { CbConfig } from './types/cbConfig.js';
 import { Worker } from 'node:worker_threads';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import { LambdaBundle } from './types/lambdaBundle.js';
 import { BundleSettings } from './types/bundleSettings.js';
 import crypto from 'node:crypto';
 import { dirname, resolve } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import * as os from 'os';
 
-const execAsync = promisify(exec);
 type EsBuildOutputs = esbuild.Metafile['outputs'];
 
 /**
@@ -557,7 +556,9 @@ async function compileCdk({
                     inject: this.props.inject,
                     esbuildArgs: this.props.esbuildArgs,
                     commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(options.inputDir, options.outputDir) ?? [], tscCommand]),
-                    commandAfterBundling: chain([...(this.props.nodeModules && this.props.commandHooks?.beforeInstall(options.inputDir, options.outputDir)) ?? [], depsCommand, ...this.props.commandHooks?.afterBundling(options.inputDir, options.outputDir) ?? []])
+                    commandAfterBundling: chain([...(this.props.nodeModules && this.props.commandHooks?.beforeInstall(options.inputDir, options.outputDir)) ?? [], depsCommand, ...this.props.commandHooks?.afterBundling(options.inputDir, options.outputDir) ?? []]),
+                    environment: this.environment,
+                    projectRoot: this.projectRoot,
                   };
 
                   global.lambdas.push(lambdaInfo);
@@ -761,6 +762,8 @@ async function executeCommands(
   // Execute all commands in parallel
   const promises = commandsToExecute.map(async (lambdasEsBuildCommand) => {
     let command = lambdasEsBuildCommand[commandPick]!;
+    const environment = lambdasEsBuildCommand.environment;
+    const projectRoot = lambdasEsBuildCommand.projectRoot;
 
     // Remove '-building' suffix from paths in commands
     command = command.replaceAll('-building', '');
@@ -769,14 +772,24 @@ async function executeCommands(
       `Executing command for ${lambdasEsBuildCommand.entryPoint}: ${command}`,
     );
 
+    const osPlatform = os.platform();
+
     try {
-      const { stdout, stderr } = await execAsync(command);
+      const { stdout, stderr } = await spawnAsync(
+        osPlatform === 'win32' ? 'cmd' : 'bash',
+        [osPlatform === 'win32' ? '/c' : '-c', command],
+        {
+          env: { ...process.env, ...environment },
+          cwd: projectRoot ?? process.cwd(),
+          windowsVerbatimArguments: osPlatform === 'win32',
+        },
+      );
 
       if (stdout) {
-        Logger.verbose(`Command stdout: ${stdout}`);
+        Logger.log(`Command stdout: ${stdout}`);
       }
       if (stderr) {
-        Logger.verbose(`Command stderr: ${stderr}`);
+        Logger.log(`Command stderr: ${stderr}`);
       }
     } catch (error: any) {
       throw new Error(
@@ -792,6 +805,55 @@ async function executeCommands(
       `All ${commandPick === 'commandBeforeBundling' ? 'before bundling' : 'after bundling'} commands executed successfully`,
     );
   }
+}
+
+/**
+ * Async wrapper for spawning child processes
+ * @param command - The command to run
+ * @param args - The arguments to pass to the command
+ * @param options - Options to configure the child process
+ * @returns A promise that resolves with the command output or rejects with an error
+ */
+
+export async function spawnAsync(
+  command: string,
+  args: string[] = [],
+  options: Parameters<typeof spawn>[2] = {},
+): Promise<{
+  stdout: string;
+  stderr: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { ...options, stdio: 'pipe' });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', reject);
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(
+          new Error(
+            `Command failed with exit code ${code}: ${command} ${args.join(' ')}\nstderr: ${stderr}\nstdout: ${stdout}`,
+          ),
+        );
+      } else {
+        resolve({
+          stdout,
+          stderr,
+        });
+      }
+    });
+  });
 }
 
 /**

@@ -26,4 +26,6 @@ export type LambdaBundle = {
 
   commandBeforeBundling: string | undefined;
   commandAfterBundling: string | undefined;
+  environment: Record<string, string | undefined>;
+  projectRoot: string | undefined;
 } & BundleSettings;
