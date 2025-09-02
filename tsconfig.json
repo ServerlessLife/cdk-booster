@@ -1,0 +1,15 @@
+{
+  "extends": "@tsconfig/node22/tsconfig.json",
+  "compilerOptions": {
+    "checkJs": true,
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "*.*",
+    ".vitepress/**/*",
+    "scripts/**/*"
+  ],
+  "exclude": ["node_modules", "dist", "test/cdk-basic/cdk.out"]
+}

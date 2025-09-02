@@ -1,0 +1,30 @@
+name: Test with real npm
+
+run-name: 'Test with real npm'
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Specify the version of the package'
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  test_global:
+    uses: ./.github/workflows/common-test.yml
+    with:
+      mode: global
+      version: ${{ inputs.version }}
+    secrets: inherit
+
+  test_local:
+    uses: ./.github/workflows/common-test.yml
+    with:
+      mode: local
+      version: ${{ inputs.version }}
+    secrets: inherit

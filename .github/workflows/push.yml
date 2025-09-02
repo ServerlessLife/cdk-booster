@@ -1,0 +1,21 @@
+name: Push CI check
+
+on:
+  workflow_dispatch:
+  push:
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/common-build.yml
+    secrets: inherit
+
+  test:
+    uses: ./.github/workflows/common-test.yml
+    secrets: inherit
+    needs: build
+    with:
+      mode: build

@@ -1,0 +1,36 @@
+{
+  "name": "cdk-basic",
+  "version": "0.0.1",
+  "bin": {
+    "cdk-basic": "bin/cdk-basic.js"
+  },
+  "scripts": {
+    "deploy": "cdk deploy --all -c environment=test --require-approval never --outputs-file cdk-outputs.json",
+    "prepare-original": "tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"npx ts-node --prefer-ts-exts bin/cdk-basic.ts\"",
+    "prepare-booster": "tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json \"node ../../dist/cdk-booster.mjs bin/cdk-basic.ts\"",
+    "deploy-original": "npm run prepare-original && npm run deploy",
+    "deploy-booster": "npm run prepare-booster && npm run deploy",
+    "build": "cdk synth -c environment=test --no-staging",
+    "build-original": "npm run prepare-original && npm run build",
+    "build-booster": "npm run prepare-booster && npm run build",
+    "destroy": "cdk destroy --all -c environment=test --force"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.2",
+    "@types/adm-zip": "^0.5.7",
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "24.1.0",
+    "adm-zip": "^0.5.16",
+    "aws-cdk": "2.1022.0",
+    "esbuild": "^0.25.8",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.8.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sts": "^3.848.0",
+    "aws-cdk-lib": "2.207.0",
+    "constructs": "^10.4.2",
+    "source-map-support": "^0.5.21",
+    "uuid": "^11.1.0"
+  }
+}
