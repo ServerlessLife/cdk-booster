@@ -1,9 +1,0 @@
-src
-tsconfig.json
-.github
-test
-cloudformation
-.vscode
-!dist
-vite.config.ts
-!*.png

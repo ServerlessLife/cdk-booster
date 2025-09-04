@@ -2,11 +2,14 @@
   "name": "cdk-booster",
   "version": "0.0.1",
   "type": "module",
-  "description": "Precompile Node.js AWS Lambda functions in AWS CDK projects to speed up deployments",
+  "description": "Speed up AWS CDK's bundling of TypeScript/JavaScript Lambda handlers",
   "homepage": "https://www.cdkbooster.com",
   "repository": {
     "type": "git",
     "url": "git@github.com:ServerlessLife/cdk-booster.git"
+  },
+  "bugs": {
+    "url": "httpshttps://github.com/ServerlessLife/cdk-booster/issues"
   },
   "license": "MPL-2.0",
   "author": {
@@ -17,6 +20,9 @@
   "exports": {
     ".": "./dist/index.mjs"
   },
+  "files": [
+    "dist"
+  ],
   "keywords": [
     "aws",
     "lambda",
