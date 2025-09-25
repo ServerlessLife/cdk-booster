@@ -14,6 +14,15 @@ export async function getConfigFromCliArgs(): Promise<CbConfig> {
 
   program.name('cdk-booster').description('CDK Booster').version(version);
   program.option('-v, --verbose', 'Verbose logging');
+  program.option(
+    '-b, --batch <number>',
+    'Number of Lambdas bundled in a batch with ESBuild',
+  );
+  program.option(
+    '-p, --parallel <number>',
+    'Number of parallel ESBuild processes. You usually do not need to change this.',
+  );
+
   program.arguments('<string>');
 
   program.parse(process.argv);

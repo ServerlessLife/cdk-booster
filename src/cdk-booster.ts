@@ -25,6 +25,7 @@ import { dirname, resolve } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import * as os from 'os';
+import { BuildTask } from './types/buildTask.js';
 
 type EsBuildOutputs = esbuild.Metafile['outputs'];
 
@@ -137,76 +138,89 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
   let outputs: EsBuildOutputs = {};
 
   // Create build combinations grouped by identical build options to optimize bundling
-  const allBuildCombinations = createBuildCombinations(lambdasEsBuildCommands);
-
-  // Group by unique build option hashes to bundle functions with identical settings together
-  const uniqueBuildHashes = new Set(
-    allBuildCombinations.map((b) => b.buildOptionsHash),
+  const buildBatches: Array<Array<BuildTask>> = createBuildCombinations(
+    lambdasEsBuildCommands,
   );
 
   // Bundle each group of functions with identical build options
-  await Promise.all(
-    Array.from(uniqueBuildHashes).map(async (buildHash) => {
-      const buildCombinations = allBuildCombinations.filter(
-        (b) => b.buildOptionsHash === buildHash,
-      );
+  const buildPromises: Promise<any>[] = [];
+  let parallelCount = 0;
 
-      const buildOptions = buildCombinations[0].buildOptions;
-      const entryPoints = buildCombinations.map((b) => b.entryPoint);
+  for (const buildBatch of buildBatches) {
+    const build = async () => {
+      parallelCount++;
+      try {
+        const buildOptions = buildBatch[0].buildOptions;
+        const entryPoints = buildBatch.map((b) => b.entryPoint);
 
-      const normalizedEsbuildArgs = normalizeEsbuildArgs(
-        buildOptions.esbuildArgs,
-      );
-
-      const esBuildOpt: esbuild.BuildOptions = {
-        entryPoints,
-        bundle: true,
-        platform: 'node',
-        outdir: tempFolder,
-        target: buildOptions.target,
-        format: buildOptions.format,
-        minify: buildOptions.minify,
-        sourcemap: buildOptions.sourcemap,
-        sourcesContent: buildOptions.sourcesContent,
-        external: buildOptions.external,
-        loader: buildOptions.loader,
-        define: buildOptions.define,
-        logLevel: buildOptions.logLevel,
-        keepNames: buildOptions.keepNames,
-        tsconfig: buildOptions.tsconfig,
-        banner: buildOptions.banner,
-        footer: buildOptions.footer,
-        mainFields: buildOptions.mainFields,
-        inject: buildOptions.inject,
-        alias: normalizedEsbuildArgs?.alias,
-        drop: normalizedEsbuildArgs?.drop as esbuild.Drop[],
-        pure: normalizedEsbuildArgs?.pure,
-        logOverride: normalizedEsbuildArgs?.logOverride,
-
-        // I need this to properly output bundled files
-        entryNames: '[dir]/[name]-[hash]/index',
-        metafile: true,
-        outExtension: { '.js': '.mjs' },
-      };
-
-      if (Logger.isVerbose()) {
-        Logger.verbose(
-          `Bundling with options:`,
-          JSON.stringify(esBuildOpt, null, 2),
-          `following functions:\n - ${entryPoints.join('\n - ')}`,
+        const normalizedEsbuildArgs = normalizeEsbuildArgs(
+          buildOptions.esbuildArgs,
         );
-      } else {
-        Logger.log(`Bundling:\n - ${entryPoints.join('\n - ')}`);
+
+        const esBuildOpt: esbuild.BuildOptions = {
+          entryPoints,
+          bundle: true,
+          platform: 'node',
+          outdir: tempFolder,
+          target: buildOptions.target,
+          format: buildOptions.format,
+          minify: buildOptions.minify,
+          sourcemap: buildOptions.sourcemap,
+          sourcesContent: buildOptions.sourcesContent,
+          external: buildOptions.external,
+          loader: buildOptions.loader,
+          define: buildOptions.define,
+          logLevel: buildOptions.logLevel,
+          keepNames: buildOptions.keepNames,
+          tsconfig: buildOptions.tsconfig,
+          banner: buildOptions.banner,
+          footer: buildOptions.footer,
+          mainFields: buildOptions.mainFields,
+          inject: buildOptions.inject,
+          alias: normalizedEsbuildArgs?.alias,
+          drop: normalizedEsbuildArgs?.drop as esbuild.Drop[],
+          pure: normalizedEsbuildArgs?.pure,
+          logOverride: normalizedEsbuildArgs?.logOverride,
+
+          // I need this to properly output bundled files
+          entryNames: '[dir]/[name]-[hash]/index',
+          metafile: true,
+          outExtension: { '.js': '.mjs' },
+        };
+
+        if (Logger.isVerbose()) {
+          Logger.verbose(
+            `Bundling with options:`,
+            JSON.stringify(esBuildOpt, null, 2),
+            `following functions:\n - ${entryPoints.join('\n - ')}`,
+          );
+        } else {
+          Logger.log(`Bundling:\n - ${entryPoints.join('\n - ')}`);
+        }
+
+        const buildingResults = await esbuild.build(esBuildOpt);
+
+        outputs = {
+          ...outputs,
+          ...buildingResults.metafile?.outputs,
+        };
+      } finally {
+        parallelCount--;
       }
+    };
 
-      const buildingResults = await esbuild.build(esBuildOpt);
+    const parallel = Configuration.config.parallel;
 
-      outputs = {
-        ...outputs,
-        ...buildingResults.metafile?.outputs,
-      };
-    }),
-  );
+    // if parallel is set, limit the number of parallel builds
+    if (parallel && parallel > 0 && parallelCount >= parallel) {
+      await Promise.race(buildPromises);
+    }
+
+    buildPromises.push(build());
+  }
+
+  await Promise.all(buildPromises);
+
   Logger.log(`All functions have been bundled.`);
 
   return outputs;
@@ -294,35 +308,64 @@ async function isSecondRun() {
  * @returns Array of build combinations with hashed build options
  */
 function createBuildCombinations(lambdasEsBuildCommands: LambdaBundle[]) {
-  return lambdasEsBuildCommands.map((lambdasEsBuildCommand) => {
-    // Create a copy of the command without non-build-related properties
-    const copy: Partial<LambdaBundle> = {
-      ...lambdasEsBuildCommand,
-    };
+  const buildCombinations = lambdasEsBuildCommands.map(
+    (lambdasEsBuildCommand) => {
+      // Create a copy of the command without non-build-related properties
+      const copy: Partial<LambdaBundle> = {
+        ...lambdasEsBuildCommand,
+      };
 
-    // Remove properties that don't affect the build configuration
-    delete copy.outfile;
-    delete copy.command;
-    delete copy.entryPoint;
-    delete copy.out;
-    delete copy.commandBeforeBundling;
-    delete copy.commandAfterBundling;
+      // Remove properties that don't affect the build configuration
+      delete copy.outfile;
+      delete copy.command;
+      delete copy.entryPoint;
+      delete copy.out;
+      delete copy.commandBeforeBundling;
+      delete copy.commandAfterBundling;
 
-    const buildOptions: BundleSettings = copy;
-    const entryPoint = lambdasEsBuildCommand.entryPoint;
+      const buildOptions: BundleSettings = copy;
+      const entryPoint = lambdasEsBuildCommand.entryPoint;
 
-    // Create a hash of build options to group identical configurations
-    const buildOptionsHash = crypto
-      .createHash('sha256')
-      .update(JSON.stringify(buildOptions))
-      .digest('hex');
+      // Create a hash of build options to group identical configurations
+      const buildOptionsHash = crypto
+        .createHash('sha256')
+        .update(JSON.stringify(buildOptions))
+        .digest('hex');
 
-    return {
-      buildOptions,
-      entryPoint,
-      buildOptionsHash,
-    };
-  });
+      return {
+        buildOptions,
+        entryPoint,
+        buildOptionsHash,
+      };
+    },
+  );
+
+  const buildBatches: Array<Array<BuildTask>> = [];
+
+  const batchSize = Configuration.config.batch;
+
+  // Group by unique build option hashes to bundle functions with identical settings together
+  const uniqueBuildHashes = new Set(
+    buildCombinations.map((b) => b.buildOptionsHash),
+  );
+
+  for (const buildHash of uniqueBuildHashes) {
+    const buildBatch: Array<BuildTask> = buildCombinations.filter(
+      (b) => b.buildOptionsHash === buildHash,
+    );
+
+    // if batch size is set and if each buildOptionsHash has more than batchSize entries, split them
+    if (batchSize && buildBatch.length > batchSize) {
+      for (let i = 0; i < buildBatch.length; i += batchSize) {
+        const chunk = buildBatch.slice(i, i + batchSize);
+        buildBatches.push(chunk);
+      }
+    } else {
+      buildBatches.push(buildBatch);
+    }
+  }
+
+  return buildBatches;
 }
 
 /**

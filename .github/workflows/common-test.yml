@@ -76,6 +76,7 @@ jobs:
         run: |
           npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json
         working-directory: test/cdk-basic
+
       - name: Deploy via cdk-booster (build mode)
         if: ${{ inputs.mode == 'build' }}
         run: |
@@ -111,9 +112,46 @@ jobs:
         run: |
           npx tsx ../../scripts/compare-states.ts cdk-original-function-files.json cdk-booster-function-files.json
         working-directory: test/cdk-basic
+
       - name: Another deploy via cdk-booster, because it could fail if repeated
         run: |
           rm -rf cdk.out
           rm -f cdk.context.json
           npm run deploy
+        working-directory: test/cdk-basic
+
+      - name: Deploy via cdk-booster (build mode) - batch=1 parallel=1
+        if: ${{ inputs.mode == 'build' }}
+        run: |
+          rm -rf cdk.out
+          rm -f cdk.context.json
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts -v -b 1 -p 1"
+          set -o pipefail
+          npm run deploy 2>&1 | tee cdk-booster.log
+        working-directory: test/cdk-basic
+      - name: Deploy via cdk-booster (global or local mode) - batch=1 parallel=1
+        if: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
+        run: |
+          rm -rf cdk.out
+          rm -f cdk.context.json
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts -v -b 1 -p 1"
+          set -o pipefail
+          npm run deploy 2>&1 | tee cdk-booster.log
+        working-directory: test/cdk-basic
+      - name: Check there was not double prebundling - batch=1 parallel=1
+        run: |
+          cat cdk-booster.log
+          npx tsx ../../scripts/check-double-prebundle.ts cdk-booster.log
+        working-directory: test/cdk-basic
+      - name: Check there was no bundling - batch=1 parallel=1
+        run: |
+          ../../scripts/check-bundling.sh cdk-booster.log false
+        working-directory: test/cdk-basic
+      - name: Save cdk-booster state - batch=1 parallel=1
+        run: |
+          npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-booster-function-files.json
+        working-directory: test/cdk-basic
+      - name: Compare CDK original and cdk-booster states - batch=1 parallel=1
+        run: |
+          npx tsx ../../scripts/compare-states.ts cdk-original-function-files.json cdk-booster-function-files.json
         working-directory: test/cdk-basic
