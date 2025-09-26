@@ -74,6 +74,33 @@ export class CdkbasicStack extends cdk.Stack {
       },
     );
 
+    const functionTestTsEsModule2 = new lambda_nodejs.NodejsFunction(
+      this,
+      'TestTsEsModule2',
+      {
+        entry: 'services/testTsEsModule/lambda.ts',
+        handler: 'lambdaHandler',
+        runtime: lambda.Runtime.NODEJS_22_X,
+        //logRetention: log.RetentionDays.ONE_DAY,
+        bundling: {
+          format: lambda_nodejs.OutputFormat.ESM,
+          commandHooks: {
+            beforeBundling(): string[] {
+              return [];
+            },
+            beforeInstall(): string[] {
+              return [];
+            },
+            afterBundling(inputDir: string, outputDir: string): string[] {
+              return [
+                `cp ${path.join(inputDir, 'test/cdk-basic/services/test.txt')} ${outputDir}`,
+              ];
+            },
+          },
+        },
+      },
+    );
+
     const functionTestJsCommonJs = new lambda_nodejs.NodejsFunction(
       this,
       'TestJsCommonJs',
@@ -116,6 +143,10 @@ export class CdkbasicStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'FunctionNameTestTsEsModule', {
       value: functionTestTsEsModule.functionName,
+    });
+
+    new cdk.CfnOutput(this, 'FunctionNameTestTsEsModule2', {
+      value: functionTestTsEsModule2.functionName,
     });
 
     new cdk.CfnOutput(this, 'FunctionNameTestJsCommonJs', {

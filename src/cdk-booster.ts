@@ -25,7 +25,6 @@ import { dirname, resolve } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import * as os from 'os';
-import { BuildTask } from './types/buildTask.js';
 
 type EsBuildOutputs = esbuild.Metafile['outputs'];
 
@@ -138,9 +137,7 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
   let outputs: EsBuildOutputs = {};
 
   // Create build combinations grouped by identical build options to optimize bundling
-  const buildBatches: Array<Array<BuildTask>> = createBuildCombinations(
-    lambdasEsBuildCommands,
-  );
+  const buildBatches = createBuildCombinations(lambdasEsBuildCommands);
 
   // Bundle each group of functions with identical build options
   const buildPromises: Promise<any>[] = [];
@@ -150,8 +147,8 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
     const build = async () => {
       parallelCount++;
       try {
-        const buildOptions = buildBatch[0].buildOptions;
-        const entryPoints = buildBatch.map((b) => b.entryPoint);
+        const buildOptions = buildBatch.buildOptions;
+        const entryPoints = buildBatch.entryPoints;
 
         const normalizedEsbuildArgs = normalizeEsbuildArgs(
           buildOptions.esbuildArgs,
@@ -340,7 +337,10 @@ function createBuildCombinations(lambdasEsBuildCommands: LambdaBundle[]) {
     },
   );
 
-  const buildBatches: Array<Array<BuildTask>> = [];
+  const buildBatches: Array<{
+    entryPoints: string[];
+    buildOptions: BundleSettings;
+  }> = [];
 
   const batchSize = Configuration.config.batch;
 
@@ -350,18 +350,28 @@ function createBuildCombinations(lambdasEsBuildCommands: LambdaBundle[]) {
   );
 
   for (const buildHash of uniqueBuildHashes) {
-    const buildBatch: Array<BuildTask> = buildCombinations.filter(
+    const buildBatch = buildCombinations.filter(
       (b) => b.buildOptionsHash === buildHash,
     );
 
+    let entryPoints: string[] = buildBatch.map((b) => b.entryPoint);
+    // unique entry points
+    entryPoints = Array.from(new Set(entryPoints));
+
     // if batch size is set and if each buildOptionsHash has more than batchSize entries, split them
-    if (batchSize && buildBatch.length > batchSize) {
-      for (let i = 0; i < buildBatch.length; i += batchSize) {
-        const chunk = buildBatch.slice(i, i + batchSize);
-        buildBatches.push(chunk);
+    if (batchSize && entryPoints.length > batchSize) {
+      for (let i = 0; i < entryPoints.length; i += batchSize) {
+        const chunk = entryPoints.slice(i, i + batchSize);
+        buildBatches.push({
+          entryPoints: chunk,
+          buildOptions: buildBatch[0].buildOptions,
+        });
       }
     } else {
-      buildBatches.push(buildBatch);
+      buildBatches.push({
+        entryPoints,
+        buildOptions: buildBatch[0].buildOptions,
+      });
     }
   }
 
