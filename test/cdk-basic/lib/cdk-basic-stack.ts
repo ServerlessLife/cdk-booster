@@ -57,6 +57,7 @@ export class CdkbasicStack extends cdk.Stack {
         //logRetention: log.RetentionDays.ONE_DAY,
         bundling: {
           format: lambda_nodejs.OutputFormat.ESM,
+
           commandHooks: {
             beforeBundling(): string[] {
               return [];

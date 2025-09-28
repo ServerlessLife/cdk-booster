@@ -146,10 +146,11 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
   for (const buildBatch of buildBatches) {
     const build = async () => {
       parallelCount++;
-      try {
-        const buildOptions = buildBatch.buildOptions;
-        const entryPoints = buildBatch.entryPoints;
+      let context: esbuild.BuildContext | undefined;
+      const buildOptions = buildBatch.buildOptions;
+      const entryPoints = buildBatch.entryPoints;
 
+      try {
         const normalizedEsbuildArgs = normalizeEsbuildArgs(
           buildOptions.esbuildArgs,
         );
@@ -194,14 +195,46 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
         } else {
           Logger.log(`Bundling:\n - ${entryPoints.join('\n - ')}`);
         }
+        // Create esbuild context for this build batch
+        context = await esbuild.context(esBuildOpt);
+        let buildingResults: esbuild.BuildResult;
 
-        const buildingResults = await esbuild.build(esBuildOpt);
+        try {
+          // Perform the build using the context
+          buildingResults = await context.rebuild();
+        } catch (err: any) {
+          Logger.log(`Error creating esbuild context.`, err);
+          // Esbuild’s child process was stopped; recreate the context once.
+          if (
+            String(err?.message || err).includes('The service was stopped') &&
+            context
+          ) {
+            Logger.log(`Retrying bundling.`);
+            try {
+              await context.dispose();
+            } catch {
+              // ignore
+            }
+            context = await esbuild.context(esBuildOpt);
+            buildingResults = await context.rebuild();
+          }
+          throw err;
+        }
 
         outputs = {
           ...outputs,
           ...buildingResults.metafile?.outputs,
         };
+      } catch (error: any) {
+        Logger.error(
+          `The following functions failed to bundle:\n - ${entryPoints.join('\n - ')}. Set batch parameter (-b) to a smaller number, like 5, to lower the chance of this error, and in case of error, a smaller batch would be affected.`,
+          error,
+        );
       } finally {
+        // Always dispose of the context to free resources
+        if (context) {
+          await context.dispose();
+        }
         parallelCount--;
       }
     };
