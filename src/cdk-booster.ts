@@ -83,7 +83,12 @@ async function run() {
       JSON.stringify(lambdas, null, 2),
     );
 
-    const lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
+    let lambdasEsBuildCommands = lambdas as any as Array<LambdaBundle>;
+
+    // skip all lambdas that have SKIP_CDK_BOOSTER env var set to true in their bundling environment
+    lambdasEsBuildCommands = lambdasEsBuildCommands.filter(
+      (lambda) => lambda.environment?.SKIP_CDK_BOOSTER !== 'true',
+    );
 
     // Prepare bundling temp folders for each Lambda function
     await recreateBundlingTempFolders(lambdasEsBuildCommands);
@@ -215,10 +220,17 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
             } catch {
               // ignore
             }
-            context = await esbuild.context(esBuildOpt);
-            buildingResults = await context.rebuild();
+            try {
+              context = await esbuild.context(esBuildOpt);
+              buildingResults = await context.rebuild();
+              Logger.log(`Retry successful.`);
+            } catch (err) {
+              Logger.log(`Retry failed.`, err);
+              throw err;
+            }
+          } else {
+            throw err;
           }
-          throw err;
         }
 
         outputs = {

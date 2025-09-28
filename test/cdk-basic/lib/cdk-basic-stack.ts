@@ -116,6 +116,7 @@ export class CdkbasicStack extends cdk.Stack {
         bundling: {
           environment: {
             TEST: 'TEST2',
+            //SKIP_CDK_BOOSTER: 'true',
           },
           commandHooks: {
             beforeBundling(inputDir: string, outputDir: string): string[] {
