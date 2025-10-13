@@ -58,16 +58,111 @@ const functionTestJsEsModule = new lambda_nodejs.NodejsFunction(
 );
 ```
 
-### Verbose Logging
+### Command Line Parameters
+
+CDK Booster supports several command-line parameters to customize its behavior:
+
+#### Verbose Logging
 
 To enable verbose logging for debugging purposes, add the `-v` parameter:
 
 ```json
 {
-  "app": "npx cdk-booster bin/your_app.ts -v".
+  "app": "npx cdk-booster bin/your_app.ts -v",
   ...
 }
 ```
+
+#### Batch Size (`-b`, `--batch`)
+
+Controls the number of Lambda functions bundled together in a single ESBuild batch. This is particularly useful for large projects with many Lambda functions (100+).
+
+**Default:** No limit (all Lambdas with identical build settings are bundled together)
+
+**When to use:**
+
+- For projects with 100+ Lambda functions
+- To reduce memory usage during builds
+
+**Example:**
+
+```json
+{
+  "app": "npx cdk-booster bin/your_app.ts -b 20",
+  ...
+}
+```
+
+Setting `-b 20` limits each ESBuild batch to 20 Lambda functions. If ESBuild crashes, only that batch of 20 functions is affected rather than all functions. Functions in the failed batch will still be bundled by CDK's standard process.
+
+#### Parallel Builds (`-p`, `--parallel`)
+
+Controls the maximum number of parallel ESBuild processes running simultaneously.
+
+**Default:** Unlimited (all batches run in parallel)
+
+**When to use:**
+
+- To limit resource usage (CPU/memory) on constrained environments
+- For CI/CD pipelines with limited resources
+- When experiencing ESBuild crashes due to too many concurrent processes
+
+**Example:**
+
+```json
+{
+  "app": "npx cdk-booster bin/your_app.ts -p 1",
+  ...
+}
+```
+
+Setting `-p 1` ensures only one ESBuild process runs at a time, which can help prevent crashes on resource-constrained systems.
+
+#### Combining Parameters
+
+You can combine multiple parameters for fine-tuned control:
+
+```json
+{
+  "app": "npx cdk-booster bin/your_app.ts -b 20 -p 2 -v",
+  ...
+}
+```
+
+### Skipping Specific Lambda Functions
+
+You can exclude individual Lambda functions from CDK Booster processing by setting the `SKIP_CDK_BOOSTER` environment variable in the `bundling` property. This is useful when:
+
+- A specific Lambda consistently causes bundling errors
+- You want to use custom bundling settings for particular functions
+- You need to debug issues with specific Lambda functions
+
+**Important:** This is a bundling-time environment variable (set in `bundling.environment`), not a runtime environment variable for your Lambda function.
+
+**Example:**
+
+```typescript
+import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+
+// This Lambda will be skipped by CDK Booster
+new lambda_nodejs.NodejsFunction(this, 'ProblematicFunction', {
+  entry: 'services/problematic/handler.ts',
+  environment: {
+    // Runtime environment variables for your Lambda
+    API_ENDPOINT: 'https://api.example.com',
+  },
+  bundling: {
+    environment: {
+      // Bundling-time environment variable - tells CDK Booster to skip this function
+      SKIP_CDK_BOOSTER: 'true',
+    },
+    minify: false,
+    sourceMap: true,
+  },
+});
+```
+
+When a Lambda is skipped, CDK Booster ignores it during the pre-bundling phase, and AWS CDK will bundle it using its standard (slower) sequential process. The function will still work normally - it just won't benefit from CDK Booster's speed improvements.
 
 ## How It Works
 
@@ -97,6 +192,14 @@ If CDK needs to run synthesis again due to unresolved resources requiring lookup
 
 - AWS CDK v2.x with TypeScript
 - TypeScript or JavaScript Lambda handlers using `NodejsFunction` construct
+
+## Troubleshooting
+
+For large projects (100+ Lambdas), if you encounter ESBuild crashes:
+
+- **Start with:** `-b 5 -p 1` (batch size 5, sequential processing)
+- **Then adjust:** Increase batch size or parallelism based on your system resources
+- **Skip specific functions:** Add `SKIP_CDK_BOOSTER: 'true'` to `bundling.environment` for problematic Lambdas
 
 ## Authors
 

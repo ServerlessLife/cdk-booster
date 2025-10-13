@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import { getVersion } from './version.js';
 import { CbConfig } from './types/cbConfig.js';
 
@@ -14,6 +14,17 @@ export async function getConfigFromCliArgs(): Promise<CbConfig> {
 
   program.name('cdk-booster').description('CDK Booster').version(version);
   program.option('-v, --verbose', 'Verbose logging');
+  program.option(
+    '-b, --batch <number>',
+    'Number of Lambdas bundled in a batch with ESBuild',
+    parseInteger,
+  );
+  program.option(
+    '-p, --parallel <number>',
+    'Number of parallel ESBuild processes. You usually do not need to change this.',
+    parseInteger,
+  );
+
   program.arguments('<string>');
 
   program.parse(process.argv);
@@ -28,4 +39,12 @@ export async function getConfigFromCliArgs(): Promise<CbConfig> {
   args.entryFile = entryFile;
 
   return args;
+}
+
+function parseInteger(value: string): number {
+  const parsedValue = parseInt(value, 10);
+  if (isNaN(parsedValue)) {
+    throw new InvalidArgumentError('Not a number.');
+  }
+  return parsedValue;
 }
