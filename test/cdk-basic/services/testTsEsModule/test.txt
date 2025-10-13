@@ -1,4 +1,0 @@
-This is a test file deployed alongside the Lambda function.
-Environment: AWS Lambda
-Service: testTsEsModule
-Purpose: Testing file deployment and context output
