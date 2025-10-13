@@ -110,13 +110,10 @@ export class CdkbasicStack extends cdk.Stack {
       },
     );
 
-    const functionInlineCode = new lambda_nodejs.NodejsFunction(
-      this,
-      'TestInlineCode',
-      {
-        runtime: lambda.Runtime.NODEJS_22_X,
-        handler: 'handler',
-        code: lambda.Code.fromInline(`
+    const functionInlineCode = new lambda.Function(this, 'TestInlineCode', {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromInline(`
           exports.handler = async (event) => {
             const response = {
             statusCode: 200,
@@ -129,8 +126,7 @@ export class CdkbasicStack extends cdk.Stack {
             return response;
           };
       `),
-      },
-    );
+    });
 
     new cdk.CfnOutput(this, 'FunctionNameTestTsCommonJs', {
       value: functionTestTsCommonJs.functionName,
