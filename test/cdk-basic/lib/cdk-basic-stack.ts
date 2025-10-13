@@ -112,19 +112,24 @@ export class CdkbasicStack extends cdk.Stack {
 
     const functionInlineCode = new lambda.Function(this, 'TestInlineCode', {
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'index.handler',
+      handler: 'index.lambdaHandler',
       code: lambda.Code.fromInline(`
-          exports.handler = async (event) => {
-            const response = {
-            statusCode: 200,
-            body: JSON.stringify({
-              message: 'Hello from inline Lambda function!',
-              timestamp: new Date().toISOString(),
-              event: event
-            }),
+            const { STSClient, GetCallerIdentityCommand } = require('@aws-sdk/client-sts');
+
+            const stsClient = new STSClient({});
+
+            exports.lambdaHandler = async () => {
+              // check SDK works
+              const command = new GetCallerIdentityCommand({});
+              const identity = await stsClient.send(command);
+
+              const response = {
+                accountId: identity.Account
+              };
+
+              return response;
             };
-            return response;
-          };
+
       `),
     });
 
