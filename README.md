@@ -197,6 +197,7 @@ If CDK needs to run synthesis again due to unresolved resources requiring lookup
 
 For large projects (100+ Lambdas), if you encounter ESBuild crashes:
 
+- **Upgrade ESBuild:** Try upgrading ESBuild to the latest version.
 - **Start with:** `-b 5 -p 1` (batch size 5, sequential processing)
 - **Then adjust:** Increase batch size or parallelism based on your system resources
 - **Skip specific functions:** Add `SKIP_CDK_BOOSTER: 'true'` to `bundling.environment` for problematic Lambdas
