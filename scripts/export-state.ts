@@ -183,6 +183,7 @@ async function exportLambdaState(
         if (executionResult.success) {
           console.log(`  ✅ Function executed successfully`);
         } else {
+          hasErrors = true;
           console.log(
             `  ❌ Function execution failed: ${executionResult.error}`,
           );

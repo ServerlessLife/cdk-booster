@@ -4,6 +4,7 @@ import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as path from 'path';
+import { NestedStack } from './nested-stack';
 
 export class CdkbasicStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -110,6 +111,32 @@ export class CdkbasicStack extends cdk.Stack {
       },
     );
 
+    const functionInlineCode = new lambda.Function(this, 'TestInlineCode', {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      handler: 'index.lambdaHandler',
+      code: lambda.Code.fromInline(`
+            const { STSClient, GetCallerIdentityCommand } = require('@aws-sdk/client-sts');
+
+            const stsClient = new STSClient({});
+
+            exports.lambdaHandler = async () => {
+              // check SDK works
+              const command = new GetCallerIdentityCommand({});
+              const identity = await stsClient.send(command);
+
+              const response = {
+                accountId: identity.Account
+              };
+
+              return response;
+            };
+
+      `),
+    });
+
+    // Create nested stack with nested nested stack inside
+    const nestedStack = new NestedStack(this, 'NestedStack');
+
     new cdk.CfnOutput(this, 'FunctionNameTestTsCommonJs', {
       value: functionTestTsCommonJs.functionName,
     });
@@ -120,6 +147,18 @@ export class CdkbasicStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'FunctionNameTestJsCommonJs', {
       value: functionTestJsCommonJs.functionName,
+    });
+
+    new cdk.CfnOutput(this, 'FunctionNameInlineCode', {
+      value: functionInlineCode.functionName,
+    });
+
+    new cdk.CfnOutput(this, 'NestedStackFunctionName', {
+      value: nestedStack.nestedFunction.functionName,
+    });
+
+    new cdk.CfnOutput(this, 'NestedNestedStackFunctionName', {
+      value: nestedStack.nestedNestedFunction.functionName,
     });
 
     new cdk.CfnOutput(this, 'DefaultVpcId', {
