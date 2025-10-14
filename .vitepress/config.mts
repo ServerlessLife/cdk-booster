@@ -64,6 +64,7 @@ export default defineConfig({
       { text: 'Setup', link: '#setup' },
       { text: 'How It Works', link: '#how-it-works' },
       { text: 'Requirements', link: '#requirements' },
+      { text: 'Troubleshooting', link: '#troubleshooting' },
       { text: 'Authors', link: '#authors' },
       { text: 'Contributors', link: '#contributors' },
       { text: 'Disclaimer', link: '#disclaimer' },
