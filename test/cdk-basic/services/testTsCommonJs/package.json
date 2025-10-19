@@ -6,6 +6,6 @@
     "@tsconfig/node20": "^20.1.6"
   },
   "dependencies": {
-    "@aws-sdk/client-sts": "^3.908.0"
+    "@aws-sdk/client-sts": "^3.913.0"
   }
 }
