@@ -22,13 +22,13 @@
     "@types/node": "24.10.1",
     "adm-zip": "^0.5.16",
     "aws-cdk": "2.1033.0",
-    "esbuild": "^0.27.0",
+    "esbuild": "^0.27.1",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.3"
   },
   "dependencies": {
-    "@aws-sdk/client-sts": "^3.936.0",
-    "aws-cdk-lib": "2.227.0",
+    "@aws-sdk/client-sts": "^3.943.0",
+    "aws-cdk-lib": "2.231.0",
     "constructs": "^10.4.3",
     "source-map-support": "^0.5.21",
     "uuid": "^13.0.0"
