@@ -76,7 +76,30 @@ jobs:
         run: |
           npx tsx ../../scripts/export-state.ts cdk-outputs.json cdk-original-function-files.json
         working-directory: test/cdk-basic
-
+      - name: Test cdk ls command (build mode)
+        if: ${{ inputs.mode == 'build' }}
+        run: |
+          rm -rf cdk.out
+          rm -f cdk.context.json
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
+          npx cdk ls 2>&1 | tee cdk-ls.log
+          # Fail if any error is found in the output
+          grep -qi "error" cdk-ls.log && echo "Error found in cdk ls output" && exit 1
+          # Verify expected stacks are listed
+          grep -q "CdkbasicStack" cdk-ls.log || (echo "Expected stacks not found" && exit 1)
+        working-directory: test/cdk-basic
+      - name: Test cdk ls command (global or local mode)
+        if: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
+        run: |
+          rm -rf cdk.out
+          rm -f cdk.context.json
+          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts"
+          npx cdk ls 2>&1 | tee cdk-ls.log
+          # Fail if any error is found in the output
+          grep -qi "error" cdk-ls.log && echo "Error found in cdk ls output" && exit 1
+          # Verify expected stacks are listed
+          grep -q "CdkbasicStack" cdk-ls.log || (echo "Expected stacks not found" && exit 1)
+        working-directory: test/cdk-basic
       - name: Deploy via cdk-booster (build mode)
         if: ${{ inputs.mode == 'build' }}
         run: |

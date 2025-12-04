@@ -23,16 +23,16 @@ parentPort.on('message', async (data) => {
     global.cdkApp.synth = () => undefined; // prevent call
     const missing = !!cloudAssembly.manifest.missing;
 
-    if (!global.lambdas || global.lambdas?.length === 0) {
-      throw new Error('No Lambda functions found in the CDK code');
-    }
-
     const lambdas = global.lambdas;
 
-    Logger.verbose(
-      `[Worker] Sending found Lambdas`,
-      JSON.stringify(lambdas, null, 2),
-    );
+    if (!global.lambdas || global.lambdas?.length === 0) {
+      Logger.verbose(`[Worker] No Lambda functions found.`);
+    } else {
+      Logger.verbose(
+        `[Worker] Sending found Lambdas`,
+        JSON.stringify(lambdas, null, 2),
+      );
+    }
     Logger.verbose(
       `[Worker] ${missing ? 'Some resources are missing and need to be looked up. Synth will have to be run twice.' : 'All resources are resolved.'}`,
     );
