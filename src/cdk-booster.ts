@@ -90,32 +90,41 @@ async function run() {
       (lambda) => lambda.environment?.SKIP_CDK_BOOSTER !== 'true',
     );
 
-    // Prepare bundling temp folders for each Lambda function
-    await recreateBundlingTempFolders(lambdasEsBuildCommands);
+    if (lambdasEsBuildCommands.length === 0) {
+      Logger.log(
+        `No Lambda functions found by the CDK Booster. Skipping bundling.`,
+      );
+    } else {
+      // Prepare bundling temp folders for each Lambda function
+      await recreateBundlingTempFolders(lambdasEsBuildCommands);
 
-    // Execute pre-bundling commands
-    await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
+      // Execute pre-bundling commands
+      await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
 
-    const outputs: EsBuildOutputs = await bundle(lambdasEsBuildCommands);
+      const outputs: EsBuildOutputs = await bundle(lambdasEsBuildCommands);
 
-    // move files to the output folder
-    await copyFilesToOutput(lambdasEsBuildCommands, outputs);
+      // move files to the output folder
+      await copyFilesToOutput(lambdasEsBuildCommands, outputs);
 
-    // Execute post-bundling commands
-    await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
+      // Execute post-bundling commands
+      await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
 
-    if (missing) {
-      copyAgainFunction = async () => {
-        await recreateBundlingTempFolders(lambdasEsBuildCommands);
-        await executeCommands(lambdasEsBuildCommands, 'commandBeforeBundling');
-        await copyFilesToOutput(lambdasEsBuildCommands, outputs);
-        await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
-      };
+      if (missing) {
+        copyAgainFunction = async () => {
+          await recreateBundlingTempFolders(lambdasEsBuildCommands);
+          await executeCommands(
+            lambdasEsBuildCommands,
+            'commandBeforeBundling',
+          );
+          await copyFilesToOutput(lambdasEsBuildCommands, outputs);
+          await executeCommands(lambdasEsBuildCommands, 'commandAfterBundling');
+        };
+      }
+
+      Logger.log(
+        `All Lambda functions have been built and copied to the output folder.`,
+      );
     }
-
-    Logger.log(
-      `All Lambda functions have been built and copied to the output folder.`,
-    );
   }
 
   Logger.log(`Starting to run regular CDK code.`);
