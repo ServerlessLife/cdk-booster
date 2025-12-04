@@ -26,7 +26,7 @@ parentPort.on('message', async (data) => {
     const lambdas = global.lambdas;
 
     if (!global.lambdas || global.lambdas?.length === 0) {
-      Logger.warn(`[Worker] No Lambda functions found.`);
+      Logger.verbose(`[Worker] No Lambda functions found.`);
     } else {
       Logger.verbose(
         `[Worker] Sending found Lambdas`,
