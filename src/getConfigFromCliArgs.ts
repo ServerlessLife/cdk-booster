@@ -24,6 +24,10 @@ export async function getConfigFromCliArgs(): Promise<CbConfig> {
     'Number of parallel ESBuild processes. You usually do not need to change this.',
     parseInteger,
   );
+  program.option(
+    '--tsconfig <path>',
+    'Path to tsconfig.json file for bundling CDK code',
+  );
 
   program.arguments('<string>');
 

@@ -57,6 +57,7 @@ async function run() {
   const compileCodeFile = await compileCdk({
     rootDir,
     entryFile: config.entryFile,
+    tsconfig: config.tsconfig,
   });
 
   Logger.verbose(
@@ -518,9 +519,11 @@ async function recreateBundlingTempFolders(
 async function compileCdk({
   rootDir,
   entryFile,
+  tsconfig,
 }: {
   rootDir: string;
   entryFile: string;
+  tsconfig?: string;
 }) {
   const isESM = await isEsm(entryFile);
 
@@ -753,6 +756,7 @@ async function compileCdk({
       outfile: compileCodeFile,
       sourcemap: false,
       plugins: [injectCodePlugin],
+      tsconfig: tsconfig,
       ...(isESM
         ? {
             format: 'esm',

@@ -73,6 +73,26 @@ To enable verbose logging for debugging purposes, add the `-v` parameter:
 }
 ```
 
+#### TypeScript Configuration (`--tsconfig`)
+
+Specifies the path to a custom `tsconfig.json` file for bundling CDK code.
+
+**Default:** Uses the default TypeScript configuration discovery
+
+**When to use:**
+
+- When your project uses a custom tsconfig location
+- When you need specific TypeScript compiler options for CDK code
+
+**Example:**
+
+```json
+{
+  "app": "npx cdk-booster bin/your_app.ts --tsconfig tsconfig.build.json",
+  ...
+}
+```
+
 #### Batch Size (`-b`, `--batch`)
 
 Controls the number of Lambda functions bundled together in a single ESBuild batch. This is particularly useful for large projects with many Lambda functions (100+).

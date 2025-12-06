@@ -14,6 +14,11 @@ export type CbConfig = {
   parallel?: number;
 
   /**
+   * Path to tsconfig.json file for bundling CDK code
+   */
+  tsconfig?: string;
+
+  /**
    * Entry file
    */
   entryFile: string;
