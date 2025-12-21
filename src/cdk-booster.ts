@@ -980,7 +980,7 @@ async function runCdkCodeAndReturnLambdas({
       });
 
       // Handle worker errors
-      worker.on('error', (error) => {
+      worker.on('error', (error: any) => {
         Logger.error(`Worker error: ${error.message}`, error);
         reject(
           new Error(`Error running CDK code in worker: ${error.message}`, {
