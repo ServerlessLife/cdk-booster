@@ -19,17 +19,17 @@
     "@tsconfig/node22": "^22.0.5",
     "@types/adm-zip": "^0.5.7",
     "@types/aws-lambda": "^8.10.159",
-    "@types/node": "24.10.1",
+    "@types/node": "25.0.3",
     "adm-zip": "^0.5.16",
-    "aws-cdk": "2.1033.0",
-    "esbuild": "^0.27.1",
+    "aws-cdk": "2.1100.1",
+    "esbuild": "^0.27.2",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.3"
   },
   "dependencies": {
-    "@aws-sdk/client-sts": "^3.943.0",
-    "aws-cdk-lib": "2.231.0",
-    "constructs": "^10.4.3",
+    "@aws-sdk/client-sts": "^3.956.0",
+    "aws-cdk-lib": "2.233.0",
+    "constructs": "^10.4.4",
     "source-map-support": "^0.5.21",
     "uuid": "^13.0.0"
   }
