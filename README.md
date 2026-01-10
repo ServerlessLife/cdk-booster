@@ -222,6 +222,24 @@ For large projects, if you encounter ESBuild crashes:
 - **Then adjust:** Increase batch size or parallelism based on your system resources
 - **Skip specific functions:** Add `SKIP_CDK_BOOSTER: 'true'` to `bundling.environment` for problematic Lambdas
 
+## Known Issues
+
+Check the [GitHub issues](https://github.com/ServerlessLife/cdk-booster/issues).
+
+### AWS CDK: NodejsFunction entry autodiscovery not supported
+
+The `NodejsFunction` entry autodiscovery feature is not supported. When using `NodejsFunction`, you must explicitly specify the `entry` property pointing to your Lambda handler file. The automatic entry lookup based on construct ID (e.g., looking for `stack.my-handler.ts` when the ID is `my-handler`) cannot be detected by Lambda Live Debugger.
+
+```typescript
+// ❌ Not supported - autodiscovery based on construct ID
+new NodejsFunction(this, 'my-handler');
+
+// ✅ Supported - explicit entry path
+new NodejsFunction(this, 'my-handler', {
+  entry: 'src/handlers/my-handler.ts',
+});
+```
+
 ## Authors
 
 - [Marko (ServerlessLife)](https://www.serverlesslife.com/)
