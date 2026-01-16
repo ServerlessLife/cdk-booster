@@ -754,7 +754,7 @@ async function compileCdk({
       platform: 'node',
       keepNames: true,
       outfile: compileCodeFile,
-      sourcemap: false,
+      sourcemap: true,
       plugins: [injectCodePlugin],
       tsconfig: tsconfig,
       ...(isESM
