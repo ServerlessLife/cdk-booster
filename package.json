@@ -96,5 +96,22 @@
     "test",
     "test/cdk-basic",
     "test/cdk-esm"
-  ]
+  ],
+  "overrides": {
+    "typescript-eslint": {
+      "eslint": "$eslint"
+    },
+    "@typescript-eslint/eslint-plugin": {
+      "eslint": "$eslint"
+    },
+    "@typescript-eslint/parser": {
+      "eslint": "$eslint"
+    },
+    "@typescript-eslint/type-utils": {
+      "eslint": "$eslint"
+    },
+    "@typescript-eslint/utils": {
+      "eslint": "$eslint"
+    }
+  }
 }

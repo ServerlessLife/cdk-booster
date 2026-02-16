@@ -80,6 +80,7 @@ function modifyCdkJson(filePath: string, newAppValue: string): ModifyResult {
     } catch (parseError: any) {
       throw new Error(
         `Invalid JSON in file ${filePath}: ${parseError.message}`,
+        { cause: parseError },
       );
     }
 

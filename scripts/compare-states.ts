@@ -168,8 +168,8 @@ function compareExecutionResults(
   const bothSuccessful = first.success && second.success;
   const bothFailed = !first.success && !second.success;
 
-  let matches = false;
-  let details = '';
+  let matches: boolean;
+  let details: string;
 
   if (bothSuccessful) {
     matches = outputMatches && statusCodeMatches;
