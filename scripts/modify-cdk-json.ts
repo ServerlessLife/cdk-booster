@@ -154,11 +154,8 @@ function modifyCdkJson(
  */
 function main(): void {
   const rawArgs: string[] = process.argv.slice(2);
-  const verbose =
-    rawArgs.includes('-v') || rawArgs.includes('--verbose');
-  const args: string[] = rawArgs.filter(
-    (a) => a !== '-v' && a !== '--verbose',
-  );
+  const verbose = rawArgs.includes('-v') || rawArgs.includes('--verbose');
+  const args: string[] = rawArgs.filter((a) => a !== '-v' && a !== '--verbose');
 
   // Check if correct number of arguments provided
   if (args.length !== 2) {
