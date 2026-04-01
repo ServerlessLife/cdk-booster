@@ -8,3 +8,6 @@ cdk.out
 cdk.out*
 
 cdk-outputs.json
+
+# Generated before each deploy to force a fresh BucketDeployment asset hash
+assets/deploy-marker.txt

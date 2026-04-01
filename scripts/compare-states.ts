@@ -58,10 +58,20 @@ interface FunctionFilesList {
 }
 
 /**
+ * Interface representing the state of an S3 bucket deployed via BucketDeployment
+ */
+interface BucketState {
+  bucketName: string;
+  objects: string[];
+  markerContent?: string;
+}
+
+/**
  * Interface representing the complete results output from export-state.ts
  */
 interface FunctionFilesResults {
   functions: FunctionFilesList[];
+  buckets?: BucketState[];
   timestamp: string;
 }
 
@@ -103,6 +113,19 @@ interface FunctionComparison {
 }
 
 /**
+ * Interface representing comparison result for an S3 bucket
+ */
+interface BucketComparison {
+  bucketName: string;
+  matches: boolean;
+  originalObjects: string[];
+  boosterObjects: string[];
+  onlyInOriginal: string[];
+  onlyInBooster: string[];
+  commonObjects: string[];
+}
+
+/**
  * Interface representing the complete comparison results
  */
 interface ComparisonResults {
@@ -110,6 +133,10 @@ interface ComparisonResults {
   matchingFunctions: number;
   mismatchingFunctions: number;
   functions: FunctionComparison[];
+  totalBuckets: number;
+  matchingBuckets: number;
+  mismatchingBuckets: number;
+  buckets: BucketComparison[];
   overallMatch: boolean;
 }
 
@@ -288,12 +315,66 @@ function compareCdkStates(
     });
   }
 
+  // Compare S3 buckets
+  const firstBucketMap = new Map<string, BucketState>();
+  const secondBucketMap = new Map<string, BucketState>();
+
+  (firstData.buckets ?? []).forEach((b) => {
+    firstBucketMap.set(b.bucketName, b);
+  });
+  (secondData.buckets ?? []).forEach((b) => {
+    secondBucketMap.set(b.bucketName, b);
+  });
+
+  const allBucketNames = new Set([
+    ...firstBucketMap.keys(),
+    ...secondBucketMap.keys(),
+  ]);
+
+  const bucketComparisons: BucketComparison[] = [];
+  let matchingBucketCount = 0;
+
+  for (const bucketName of Array.from(allBucketNames).sort()) {
+    const firstBucket = firstBucketMap.get(bucketName);
+    const secondBucket = secondBucketMap.get(bucketName);
+
+    const firstObjects = firstBucket?.objects ?? [];
+    const secondObjects = secondBucket?.objects ?? [];
+
+    const firstSet = new Set(firstObjects);
+    const secondSet = new Set(secondObjects);
+
+    const onlyInOriginal = firstObjects.filter((o) => !secondSet.has(o));
+    const onlyInBooster = secondObjects.filter((o) => !firstSet.has(o));
+    const commonObjects = firstObjects.filter((o) => secondSet.has(o));
+
+    const matches = onlyInOriginal.length === 0 && onlyInBooster.length === 0;
+    if (matches) matchingBucketCount++;
+
+    bucketComparisons.push({
+      bucketName,
+      matches,
+      originalObjects: firstObjects,
+      boosterObjects: secondObjects,
+      onlyInOriginal,
+      onlyInBooster,
+      commonObjects,
+    });
+  }
+
+  const functionsMatch = matchingCount === allFunctionNames.size;
+  const bucketsMatch = matchingBucketCount === allBucketNames.size;
+
   return {
     totalFunctions: allFunctionNames.size,
     matchingFunctions: matchingCount,
     mismatchingFunctions: allFunctionNames.size - matchingCount,
     functions: functionComparisons,
-    overallMatch: matchingCount === allFunctionNames.size,
+    totalBuckets: allBucketNames.size,
+    matchingBuckets: matchingBucketCount,
+    mismatchingBuckets: allBucketNames.size - matchingBucketCount,
+    buckets: bucketComparisons,
+    overallMatch: functionsMatch && bucketsMatch,
   };
 }
 
@@ -356,21 +437,56 @@ function printResults(
     console.log('');
   }
 
+  // Print S3 bucket comparison
+  if (results.buckets.length > 0) {
+    console.log('\n=== S3 Bucket Comparison ===\n');
+    console.log(`Total buckets: ${results.totalBuckets}`);
+    console.log(`Matching buckets: ${results.matchingBuckets}`);
+    console.log(`Mismatching buckets: ${results.mismatchingBuckets}\n`);
+
+    for (const bucket of results.buckets) {
+      const status = bucket.matches ? '✅ MATCH' : '❌ MISMATCH';
+      console.log(`${status} ${bucket.bucketName}`);
+      console.log(
+        `  First total: ${bucket.originalObjects.length}, Second total: ${bucket.boosterObjects.length}, Common: ${bucket.commonObjects.length}`,
+      );
+
+      if (bucket.onlyInOriginal.length > 0) {
+        console.log('  Only in first:');
+        bucket.onlyInOriginal.forEach((o) => console.log(`    ❌ ${o}`));
+      }
+      if (bucket.onlyInBooster.length > 0) {
+        console.log('  Only in second:');
+        bucket.onlyInBooster.forEach((o) => console.log(`    ➕ ${o}`));
+      }
+      if (bucket.commonObjects.length > 0) {
+        console.log('  Common objects:');
+        bucket.commonObjects.forEach((o) => console.log(`    ✅ ${o}`));
+      }
+      console.log('');
+    }
+  }
+
   // Final summary
   if (results.overallMatch) {
     console.log(
-      '🎉 All Lambda functions have identical file structures and execution outputs!',
+      '🎉 All Lambda functions and S3 buckets have identical structures!',
     );
   } else {
     console.log(
-      '⚠️  Some Lambda functions have different file structures or execution outputs.',
+      '⚠️  Some Lambda functions or S3 buckets have different structures.',
     );
     console.log(
-      `Files matching: ${results.functions.filter((f) => f.filesMatch).length}/${results.totalFunctions}`,
+      `Functions matching: ${results.matchingFunctions}/${results.totalFunctions}`,
     );
     console.log(
       `Executions matching: ${results.functions.filter((f) => f.executionMatch).length}/${results.totalFunctions}`,
     );
+    if (results.totalBuckets > 0) {
+      console.log(
+        `Buckets matching: ${results.matchingBuckets}/${results.totalBuckets}`,
+      );
+    }
   }
 }
 
@@ -418,4 +534,5 @@ export {
   FunctionComparison,
   FileComparison,
   ExecutionComparison,
+  BucketComparison,
 };

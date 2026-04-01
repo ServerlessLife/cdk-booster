@@ -3,6 +3,8 @@ import { Construct } from 'constructs';
 import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as path from 'path';
 import { NestedStack } from './nested-stack';
 
@@ -192,6 +194,21 @@ export class CdkbasicStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'NestedNestedStackFunctionName', {
       value: nestedStack.nestedNestedFunction.functionName,
+    });
+
+    // S3 bucket with BucketDeployment to test cdk-booster compatibility
+    const testBucket = new s3.Bucket(this, 'TestBucketDeployment', {
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    new s3deploy.BucketDeployment(this, 'DeployTestAssets', {
+      sources: [s3deploy.Source.asset('./assets')],
+      destinationBucket: testBucket,
+    });
+
+    new cdk.CfnOutput(this, 'BucketDeploymentBucketName', {
+      value: testBucket.bucketName,
     });
 
     new cdk.CfnOutput(this, 'DefaultVpcId', {
