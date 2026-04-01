@@ -68,7 +68,7 @@ jobs:
         working-directory: test/cdk-basic
       - name: Deploy CDK original
         run: |
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
+          npx tsx ../../scripts/modify-cdk-json.ts -v ../../test/cdk-basic/cdk.json "npx ts-node --prefer-ts-exts bin/cdk-basic.ts"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-original.log
         working-directory: test/cdk-basic
@@ -85,7 +85,7 @@ jobs:
         run: |
           rm -rf cdk.out
           rm -f cdk.context.json
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
+          npx tsx ../../scripts/modify-cdk-json.ts -v ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
           npx cdk ls 2>&1 | tee cdk-ls.log
           # Fail if any error is found in the output
           grep -qi "error" cdk-ls.log && echo "Error found in cdk ls output" && exit 1
@@ -97,7 +97,7 @@ jobs:
         run: |
           rm -rf cdk.out
           rm -f cdk.context.json
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts"
+          npx tsx ../../scripts/modify-cdk-json.ts -v ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts"
           npx cdk ls 2>&1 | tee cdk-ls.log
           # Fail if any error is found in the output
           grep -qi "error" cdk-ls.log && echo "Error found in cdk ls output" && exit 1
@@ -113,7 +113,7 @@ jobs:
         run: |
           rm -rf cdk.out
           rm -f cdk.context.json
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts -v"
+          npx tsx ../../scripts/modify-cdk-json.ts -v ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts -v"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
@@ -122,7 +122,7 @@ jobs:
         run: |
           rm -rf cdk.out
           rm -f cdk.context.json
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts -v"
+          npx tsx ../../scripts/modify-cdk-json.ts -v ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts -v"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
@@ -160,7 +160,7 @@ jobs:
         run: |
           rm -rf cdk.out
           rm -f cdk.context.json
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts -v -b 1 -p 1"
+          npx tsx ../../scripts/modify-cdk-json.ts -v ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts -v -b 1 -p 1"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
@@ -169,7 +169,7 @@ jobs:
         run: |
           rm -rf cdk.out
           rm -f cdk.context.json
-          npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts -v -b 1 -p 1"
+          npx tsx ../../scripts/modify-cdk-json.ts -v ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts -v -b 1 -p 1"
           set -o pipefail
           npm run deploy 2>&1 | tee cdk-booster.log
         working-directory: test/cdk-basic
