@@ -678,12 +678,11 @@ async function compileCdk({
           }
 
           // Inject code to prevent deploying the assets during inspect pass
-          contents = contents.replace(codeToFind, codeToFind + `return;`);
-          // contents = contents.replace(
-          //   codeToFind,
-          //   codeToFind +
-          //     `if(process.env.CDK_BOOSTER_INSPECT==='true'){return;}`,
-          // );
+          contents = contents.replace(
+            codeToFind,
+            codeToFind +
+              `if(process.env.CDK_BOOSTER_INSPECT==='true'){return;}`,
+          );
 
           Logger.verbose(`Injected code into ${args.path}`);
         } else if (
