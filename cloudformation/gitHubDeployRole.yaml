@@ -114,6 +114,7 @@ Resources:
                   - s3:PutObject
                 Resource:
                   - arn:aws:s3:::cdk*
+                  - arn:aws:s3:::*cdkbooster*
               - Effect: Allow
                 Action:
                   - ssm:DeleteParameter
