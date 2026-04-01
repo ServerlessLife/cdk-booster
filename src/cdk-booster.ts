@@ -655,6 +655,13 @@ async function compileCdk({
             `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3.replace('return', '')})`,
           );
 
+          // In worker threads process.stderr is WritableWorkerStdio; spawn/exec only accepts
+          // pipes, inherit, ignore, or numeric fds. Map to fd 2 twice (CDK sends child stdout to stderr).
+          contents = contents.replace(
+            /stdio:\["ignore",process\.stderr,"inherit"\]/g,
+            'stdio:["ignore",2,2]',
+          );
+
           Logger.verbose(`Injected code into ${args.path}`);
         } else if (
           args.path.includes(
