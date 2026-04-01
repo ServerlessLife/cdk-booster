@@ -1,7 +1,43 @@
 // @ts-nocheck
+import { createRequire } from 'node:module';
 import { workerData, parentPort } from 'node:worker_threads';
 import { pathToFileURL } from 'url';
 import { Logger } from './logger.mjs';
+
+// Worker threads expose process.stdin/out/err as WritableWorkerStdio; child_process
+// only accepts real fds, pipes, or certain strings. CDK passes process.stderr in
+// stdio arrays — normalize to numeric fds before any app (or aws-cdk-lib) loads.
+const require = createRequire(import.meta.url);
+const cp = require('node:child_process');
+const origSpawn = cp.spawn.bind(cp);
+const origSpawnSync = cp.spawnSync.bind(cp);
+
+function normalizeStdioOptions(options) {
+  if (!options || typeof options !== 'object') return options;
+  const { stdio } = options;
+  if (!Array.isArray(stdio)) return options;
+  const next = stdio.map((s) => {
+    if (s === process.stdin) return 0;
+    if (s === process.stdout) return 1;
+    if (s === process.stderr) return 2;
+    return s;
+  });
+  return { ...options, stdio: next };
+}
+
+cp.spawn = function spawn(command, args, options) {
+  if (Array.isArray(args)) {
+    return origSpawn(command, args, normalizeStdioOptions(options));
+  }
+  return origSpawn(command, normalizeStdioOptions(args));
+};
+
+cp.spawnSync = function spawnSync(command, args, options) {
+  if (Array.isArray(args)) {
+    return origSpawnSync(command, args, normalizeStdioOptions(options));
+  }
+  return origSpawnSync(command, normalizeStdioOptions(args));
+};
 
 Logger.setVerbose(workerData.verbose);
 process.env.CDK_OUTDIR = 'cdk.out';
