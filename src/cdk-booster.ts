@@ -14,6 +14,7 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { outputFolder } from './constants.js';
 import { findPackageJson } from './utils/findPackageJson.js';
+import { getAwsCdkLibVersionForLog } from './utils/getAwsCdkLibVersionForLog.js';
 import { CbConfig } from './types/cbConfig.js';
 import { Worker } from 'node:worker_threads';
 import { type BundlingOptions } from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -36,6 +37,11 @@ async function run() {
   const version = await getVersion();
 
   Logger.log(`Welcome to CDK Booster 🚀 version ${version}.`);
+
+  const cdkVersion = getAwsCdkLibVersionForLog();
+  if (cdkVersion) {
+    Logger.log(`CDK version: ${cdkVersion}`);
+  }
 
   await Configuration.readConfig();
 
@@ -581,8 +587,16 @@ async function compileCdk({
             path.join('aws-cdk-lib', 'aws-lambda-nodejs', 'lib', 'bundling.'),
           )
         ) {
+          const codeToFind2 = 'return chain([...this.props.commandHooks';
+
+          if (!contents.includes(codeToFind2)) {
+            throw new Error(
+              `Can not find '${codeToFind2.substring(0, 30)}...' in ${args.path}`,
+            );
+          }
+
           contents = contents.replace(
-            'return chain([...this.props.commandHooks',
+            codeToFind2,
             'const command = chain([...this.props.commandHooks',
           );
 
@@ -590,7 +604,9 @@ async function compileCdk({
             'afterBundling(options.inputDir,options.outputDir)??[]])';
 
           if (!contents.includes(codeToFind)) {
-            throw new Error(`Can not find code to inject in ${args.path}`);
+            throw new Error(
+              `Can not find '${codeToFind.substring(0, 30)}...' in ${args.path}`,
+            );
           }
 
           // Inject code to get the file path of the Lambda function and CDK hierarchy
@@ -648,11 +664,98 @@ async function compileCdk({
               `,
           );
 
-          const codeToFind3 =
+          // For newer CDK versions: inject lambda info capture into createLocalBundlingSteps
+          // (the old injection via codeToFind/codeToFind2 only covers createBundleCommand
+          // which is only used for Docker bundling in newer CDK versions)
+          const codeToFind5 =
+            'createLocalBundlingSteps(scope,outputDir,esbuild,tsc){const steps=[];';
+
+          if (contents.includes(codeToFind5)) {
+            contents = contents.replace(
+              codeToFind5,
+              codeToFind5 +
+                `
+                if (process.env.CDK_BOOSTER_INSPECT === 'true') {
+                  global.lambdas = global.lambdas ?? [];
+
+                  const outFile = this.props.format === types_1().OutputFormat.ESM ? 'index.mjs' : 'index.js';
+                  const out = path().join(outputDir, outFile);
+                  const sourceMapEnabled = this.props.sourceMapMode ?? this.props.sourceMap;
+                  const sourcesContent = this.props.sourcesContent ?? true;
+
+                  const lambdaInfo = {
+                    entryPoint: path().join(this.projectRoot, this.relativeEntryPath),
+                    out,
+                    target: this.props.target ?? toTarget(scope, this.props.runtime),
+                    format: this.props.format,
+                    minify: this.props.minify,
+                    sourcemap: sourceMapEnabled ? ((this.props.sourceMapMode === 'default' || !this.props.sourceMapMode) ? true : this.props.sourceMapMode) : false,
+                    sourcesContent,
+                    external: this.externals,
+                    loader: this.props.loader,
+                    define: this.props.define,
+                    logLevel: this.props.logLevel,
+                    keepNames: this.props.keepNames,
+                    tsconfig: this.relativeTsconfigPath ? path().join(this.projectRoot, this.relativeTsconfigPath) : undefined,
+                    banner: this.props.banner ? { js: this.props.banner } : undefined,
+                    footer: this.props.footer ? { js: this.props.footer } : undefined,
+                    mainFields: this.props.mainFields,
+                    inject: this.props.inject,
+                    esbuildArgs: this.props.esbuildArgs,
+                    commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(this.projectRoot, outputDir) ?? []]),
+                    commandAfterBundling: chain([...this.props.commandHooks?.afterBundling(this.projectRoot, outputDir) ?? []]),
+                    environment: this.environment,
+                    projectRoot: this.projectRoot,
+                  };
+
+                  global.lambdas.push(lambdaInfo);
+
+                  const _fs = require('fs');
+                  const dir = path().dirname(out);
+                  _fs.mkdirSync(dir, { recursive: true });
+                  _fs.writeFileSync(out, '');
+
+                  return steps;
+                }
+                `,
+            );
+          }
+
+          const codeToFind3old =
             'return(0,util_1().exec)(osPlatform==="win32"?"cmd":"bash",[osPlatform==="win32"?"/c":"-c",localCommand],{env:{...process.env,...environment},stdio:["ignore",process.stderr,"inherit"],cwd,windowsVerbatimArguments:osPlatform==="win32"}),!0';
+
+          const codeToFind3new = 'for(const step of steps)switch(step.type){';
+
+          if (contents.includes(codeToFind3old)) {
+            contents = contents.replace(
+              codeToFind3old,
+              `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3old.replace('return', '')})`,
+            );
+          } else if (contents.includes(codeToFind3new)) {
+            contents = contents.replace(
+              codeToFind3new,
+              `if(process.env.CDK_BOOSTER_INSPECT!=='true')${codeToFind3new}`,
+            );
+          } else {
+            throw new Error(
+              `Can not find '${codeToFind3old.substring(0, 30)}...' or '${codeToFind3new.substring(0, 30)}...' in ${args.path}`,
+            );
+          }
+
+          // In worker threads, process.stderr may be a WritableWorkerStdio object.
+          // Node child_process stdio does not accept that object, so use 'pipe'
+          // and forward the output manually after execution.
+          const codeToFind4 = '["ignore",process.stderr,"inherit"]';
+
+          if (!contents.includes(codeToFind4)) {
+            throw new Error(
+              `Can not find '${codeToFind4.substring(0, 30)}...' in ${args.path}`,
+            );
+          }
+
           contents = contents.replace(
-            codeToFind3,
-            `return (process.env.CDK_BOOSTER_INSPECT === 'true') ? true : (${codeToFind3.replace('return', '')})`,
+            codeToFind4,
+            '(process.env.CDK_BOOSTER_INSPECT===\'true\'?["ignore",process.stderr,"inherit"]:["ignore","pipe","pipe"])',
           );
 
           Logger.verbose(`Injected code into ${args.path}`);
@@ -674,7 +777,9 @@ async function compileCdk({
           }
 
           if (!contents.includes(codeToFind)) {
-            throw new Error(`Can not find code to inject in ${args.path}`);
+            throw new Error(
+              `Can not find '${codeToFind.substring(0, 30)}...' in ${args.path}`,
+            );
           }
 
           // Inject code to prevent deploying the assets during inspect pass
@@ -692,7 +797,9 @@ async function compileCdk({
             ',policyValidationBeta1:props.policyValidationBeta1});';
 
           if (!contents.includes(codeToFind)) {
-            throw new Error(`Can not find code to inject in ${args.path}`);
+            throw new Error(
+              `Can not find '${codeToFind.substring(0, 30)}...' in ${args.path}`,
+            );
           }
 
           // make CDK app available
@@ -710,7 +817,9 @@ async function compileCdk({
           const codeToFind = 'if(fs().existsSync(bundleDir))return;';
 
           if (!contents.includes(codeToFind)) {
-            throw new Error(`Can not find code to inject in ${args.path}`);
+            throw new Error(
+              `Can not find '${codeToFind.substring(0, 30)}...' in ${args.path}`,
+            );
           }
 
           // Inject code to get the file path of the Lambda function and CDK hierarchy
