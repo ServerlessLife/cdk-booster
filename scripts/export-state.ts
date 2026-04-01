@@ -54,6 +54,11 @@ import {
   GetFunctionResponse,
   InvokeCommand,
 } from '@aws-sdk/client-lambda';
+import {
+  S3Client,
+  ListObjectsV2Command,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
 import AdmZip from 'adm-zip';
 
 /**
@@ -87,11 +92,21 @@ interface FunctionFilesList {
 }
 
 /**
+ * Interface representing the state of an S3 bucket deployed via BucketDeployment
+ */
+interface BucketState {
+  bucketName: string;
+  objects: string[];
+  markerContent?: string;
+}
+
+/**
  * Interface representing the complete results output
  */
 interface Results {
-  functions: FunctionFilesList[]; // Array of all processed functions
-  timestamp: string; // ISO timestamp when the analysis was performed
+  functions: FunctionFilesList[];
+  buckets: BucketState[];
+  timestamp: string;
 }
 
 /**
@@ -133,6 +148,7 @@ async function exportLambdaState(
     // Initialize results object with metadata
     const results: Results = {
       functions: [],
+      buckets: [],
       timestamp: new Date().toISOString(),
     };
 
@@ -212,6 +228,43 @@ async function exportLambdaState(
       }
     }
 
+    // Export S3 bucket state for BucketDeployment verification
+    const bucketNames: string[] = [];
+    for (const stack of Object.values(outputs)) {
+      for (const [key, value] of Object.entries(stack)) {
+        if (key.includes('BucketDeploymentBucketName')) {
+          bucketNames.push(value);
+        }
+      }
+    }
+    bucketNames.sort();
+
+    if (bucketNames.length > 0) {
+      console.log(`\nFound ${bucketNames.length} BucketDeployment bucket(s)`);
+      const s3Client = new S3Client({});
+
+      for (const bucketName of bucketNames) {
+        console.log(`Processing bucket: ${bucketName}`);
+        try {
+          const bucketState = await exportBucketState(s3Client, bucketName);
+          results.buckets.push(bucketState);
+          console.log(`  Found ${bucketState.objects.length} objects`);
+          if (bucketState.markerContent) {
+            console.log(`  Marker: ${bucketState.markerContent}`);
+          }
+        } catch (error) {
+          hasErrors = true;
+          console.error(`Error processing bucket ${bucketName}:`, error);
+          results.buckets.push({
+            bucketName,
+            objects: [
+              `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            ],
+          });
+        }
+      }
+    }
+
     // Extract output directory path from the output file path
     const outputDir = path.dirname(outputFile);
 
@@ -220,10 +273,11 @@ async function exportLambdaState(
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    // Sort functions by name before writing to output for consistent results
+    // Sort functions and buckets by name before writing for consistent results
     results.functions.sort((a, b) =>
       a.functionName.localeCompare(b.functionName),
     );
+    results.buckets.sort((a, b) => a.bucketName.localeCompare(b.bucketName));
 
     // Write the complete results to the specified output file with pretty formatting
     fs.writeFileSync(outputFile, JSON.stringify(results, null, 2));
@@ -289,6 +343,53 @@ async function executeLambdaFunction(
       },
     };
   }
+}
+
+/**
+ * Export the state of an S3 bucket: list all object keys and read the deploy marker
+ */
+async function exportBucketState(
+  s3Client: S3Client,
+  bucketName: string,
+): Promise<BucketState> {
+  const objects: string[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const listResponse = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: bucketName,
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    if (listResponse.Contents) {
+      for (const obj of listResponse.Contents) {
+        if (obj.Key) {
+          objects.push(obj.Key);
+        }
+      }
+    }
+
+    continuationToken = listResponse.NextContinuationToken;
+  } while (continuationToken);
+
+  objects.sort();
+
+  let markerContent: string | undefined;
+  try {
+    const markerResponse = await s3Client.send(
+      new GetObjectCommand({
+        Bucket: bucketName,
+        Key: 'deploy-marker.txt',
+      }),
+    );
+    markerContent = await markerResponse.Body?.transformToString('utf-8');
+  } catch {
+    // deploy-marker.txt may not exist
+  }
+
+  return { bucketName, objects, markerContent };
 }
 
 /**

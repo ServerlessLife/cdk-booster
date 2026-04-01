@@ -677,8 +677,12 @@ async function compileCdk({
             throw new Error(`Can not find code to inject in ${args.path}`);
           }
 
-          // Inject code to prevent deploying the assets
-          contents = contents.replace(codeToFind, codeToFind + `return;`);
+          // Inject code to prevent deploying the assets during inspect pass
+          contents = contents.replace(
+            codeToFind,
+            codeToFind +
+              `if(process.env.CDK_BOOSTER_INSPECT==='true'){return;}`,
+          );
 
           Logger.verbose(`Injected code into ${args.path}`);
         } else if (
