@@ -28,23 +28,33 @@ jobs:
     with:
       mode: build
 
-  publish:
+  test_aws_cdk_lib_2_239_0:
+    uses: ./.github/workflows/common-test.yml
+    secrets: inherit
     needs: test
+    with:
+      mode: build
+      awsCdk: '2.1106.1'
+      awsCdkLib: '2.239.0'
+      constructs: '^10.5.1'
+
+  publish:
+    needs: [test, test_aws_cdk_lib_2_239_0]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
       group: publish
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.node_version }}
           registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies
         run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: dist
           path: dist

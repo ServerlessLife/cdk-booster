@@ -1,6 +1,6 @@
 name: Common CI tests
 
-run-name: 'Test: mode=${{ inputs.mode }}, testMonorepo=${{ inputs.testMonorepo }}'
+run-name: 'Test: mode=${{ inputs.mode }}'
 
 on:
   workflow_call:
@@ -13,10 +13,25 @@ on:
         description: 'Specify the version of the package'
         type: string
         required: false
+      awsCdk:
+        description: 'Override aws-cdk in test/cdk-basic (devDependencies). Leave empty to use package.json.'
+        type: string
+        required: false
+        default: ''
+      awsCdkLib:
+        description: 'Override aws-cdk-lib in test/cdk-basic (dependencies). Leave empty to use package.json.'
+        type: string
+        required: false
+        default: ''
+      constructs:
+        description: 'Override constructs in test/cdk-basic (dependencies). Leave empty to use package.json.'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   id-token: write
-  contents: write
+  contents: read
 
 env:
   REAL_NPM: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
@@ -28,16 +43,37 @@ jobs:
     concurrency:
       group: test-cdk-basic
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      - name: Apply optional CDK package versions (test/cdk-basic)
+        if: ${{ inputs.awsCdk != '' || inputs.awsCdkLib != '' || inputs.constructs != '' }}
+        env:
+          AWS_CDK: ${{ inputs.awsCdk }}
+          AWS_CDK_LIB: ${{ inputs.awsCdkLib }}
+          CONSTRUCTS: ${{ inputs.constructs }}
+        run: |
+          set -euo pipefail
+          PKG=test/cdk-basic/package.json
+          tmp="$(mktemp)"
+          jq --indent 2 \
+            --arg ac "${AWS_CDK:-}" \
+            --arg acl "${AWS_CDK_LIB:-}" \
+            --arg c "${CONSTRUCTS:-}" \
+            '
+            .devDependencies |= (. // {})
+            | .dependencies |= (. // {})
+            | .devDependencies["aws-cdk"] = (if ($ac | length) > 0 then $ac else .devDependencies["aws-cdk"] end)
+            | .dependencies["aws-cdk-lib"] = (if ($acl | length) > 0 then $acl else .dependencies["aws-cdk-lib"] end)
+            | .dependencies["constructs"] = (if ($c | length) > 0 then $c else .dependencies["constructs"] end)
+            ' "$PKG" > "$tmp"
+          mv "$tmp" "$PKG"
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.node_version }}
-          registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies
         run: npm i
       - name: Download build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         if: ${{ inputs.mode == 'build' }}
         with:
           name: dist
@@ -53,7 +89,7 @@ jobs:
           npm i cdk-booster@${{ inputs.version || 'latest' }}
         working-directory: test
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: eu-west-1
           role-to-assume: ${{ secrets.AWS_ROLE }}
