@@ -20,14 +20,14 @@
     "@types/adm-zip": "^0.5.8",
     "@types/aws-lambda": "^8.10.161",
     "@types/node": "25.5.0",
-    "adm-zip": "^0.5.16",
-    "aws-cdk": "2.1115.1",
-    "esbuild": "^0.27.4",
+    "adm-zip": "^0.5.17",
+    "aws-cdk": "2.1116.0",
+    "esbuild": "^0.27.5",
     "ts-node": "^10.9.2",
     "typescript": "~6.0.2"
   },
   "dependencies": {
-    "@aws-sdk/client-sts": "^3.1021.0",
+    "@aws-sdk/client-sts": "^3.1022.0",
     "aws-cdk-lib": "2.246.0",
     "constructs": "^10.6.0",
     "source-map-support": "^0.5.21",
