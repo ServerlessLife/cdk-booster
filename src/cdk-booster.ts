@@ -793,20 +793,28 @@ async function compileCdk({
         } else if (
           args.path.includes(path.join('aws-cdk-lib', 'core', 'lib', 'app.'))
         ) {
-          const codeToFind =
+          // CDK ≤2.250 passed policyValidationBeta1 into Stage's super(); 2.251+ calls
+          // _addValidationPlugins instead. Anchor on APP_SYMBOL registration (unchanged).
+          const codeToFindLegacy =
             ',policyValidationBeta1:props.policyValidationBeta1});';
+          const codeToFindStable =
+            'Object.defineProperty(this,APP_SYMBOL,{value:!0}),this.loadContext';
 
-          if (!contents.includes(codeToFind)) {
+          if (contents.includes(codeToFindLegacy)) {
+            contents = contents.replace(
+              codeToFindLegacy,
+              codeToFindLegacy + 'global.cdkApp = this;',
+            );
+          } else if (contents.includes(codeToFindStable)) {
+            contents = contents.replace(
+              codeToFindStable,
+              'Object.defineProperty(this,APP_SYMBOL,{value:!0}),global.cdkApp=this,this.loadContext',
+            );
+          } else {
             throw new Error(
-              `Can not find '${codeToFind.substring(0, 30)}...' in ${args.path}`,
+              `Can not find App constructor injection anchor (legacy policyValidationBeta1 or APP_SYMBOL) in ${args.path}`,
             );
           }
-
-          // make CDK app available
-          contents = contents.replace(
-            codeToFind,
-            codeToFind + `global.cdkApp = this;`,
-          );
 
           Logger.verbose(`Injected code into ${args.path}`);
         } else if (
