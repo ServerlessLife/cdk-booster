@@ -31,3 +31,13 @@ jobs:
       awsCdk: '2.1106.1'
       awsCdkLib: '2.239.0'
       constructs: '^10.5.1'
+
+  test_aws_cdk_lib_2_251_0:
+    uses: ./.github/workflows/common-test.yml
+    secrets: inherit
+    needs: test_aws_cdk_lib_2_239_0
+    with:
+      mode: build
+      awsCdk: '2.1119.0'
+      awsCdkLib: '2.251.0'
+      constructs: '^10.6.0'

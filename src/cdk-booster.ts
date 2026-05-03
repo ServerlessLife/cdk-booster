@@ -587,45 +587,110 @@ async function compileCdk({
             path.join('aws-cdk-lib', 'aws-lambda-nodejs', 'lib', 'bundling.'),
           )
         ) {
-          const codeToFind2 = 'return chain([...this.props.commandHooks';
+          // Detect which CDK bundling.js layout we're dealing with.
+          // - Pre-2.252: separate `createBundlingCommand` (with inline
+          //   `chain([...this.props.commandHooks...])`) and
+          //   `createLocalBundlingSteps` methods.
+          // - 2.252+: unified `createBundlingSteps` and a new
+          //   `executeBundlingSteps` invoked from `tryBundle` via
+          //   `return this.executeBundlingSteps(scope,steps),!0`.
+          const oldCdkAnchor = 'return chain([...this.props.commandHooks';
+          const newCdkAnchor =
+            'return this.executeBundlingSteps(scope,steps),!0';
 
-          if (!contents.includes(codeToFind2)) {
+          const isOldCdkStyle = contents.includes(oldCdkAnchor);
+          const isNewCdkStyle = contents.includes(newCdkAnchor);
+
+          if (!isOldCdkStyle && !isNewCdkStyle) {
             throw new Error(
-              `Can not find '${codeToFind2.substring(0, 30)}...' in ${args.path}`,
+              `Can not find a known CDK bundling.js anchor (neither '${oldCdkAnchor.substring(0, 30)}...' nor '${newCdkAnchor.substring(0, 30)}...') in ${args.path}. The CDK version may not be supported.`,
             );
           }
 
-          contents = contents.replace(
-            codeToFind2,
-            'const command = chain([...this.props.commandHooks',
-          );
+          // Inspect-mode block used by both the old `createLocalBundlingSteps`
+          // and the new `tryBundle` injection points. Both contexts have
+          // access to: this.props, this.projectRoot, this.relativeEntryPath,
+          // this.externals, this.relativeTsconfigPath, this.environment,
+          // scope, outputDir, and the module-scope helpers `path()`,
+          // `types_1()`, `toTarget`, `chain`.
+          const captureLambdaInfo = (returnStatement: string) => `
+            if (process.env.CDK_BOOSTER_INSPECT === 'true') {
+              global.lambdas = global.lambdas ?? [];
 
-          const codeToFind =
-            'afterBundling(options.inputDir,options.outputDir)??[]])';
+              const __outFile = this.props.format === types_1().OutputFormat.ESM ? 'index.mjs' : 'index.js';
+              const __out = path().join(outputDir, __outFile);
+              const __sourceMapEnabled = this.props.sourceMapMode ?? this.props.sourceMap;
+              const __sourcesContent = this.props.sourcesContent ?? true;
 
-          if (!contents.includes(codeToFind)) {
-            throw new Error(
-              `Can not find '${codeToFind.substring(0, 30)}...' in ${args.path}`,
+              global.lambdas.push({
+                entryPoint: path().join(this.projectRoot, this.relativeEntryPath),
+                out: __out,
+                target: this.props.target ?? toTarget(scope, this.props.runtime),
+                format: this.props.format,
+                minify: this.props.minify,
+                sourcemap: __sourceMapEnabled ? ((this.props.sourceMapMode === 'default' || !this.props.sourceMapMode) ? true : this.props.sourceMapMode) : false,
+                sourcesContent: __sourcesContent,
+                external: this.externals,
+                loader: this.props.loader,
+                define: this.props.define,
+                logLevel: this.props.logLevel,
+                keepNames: this.props.keepNames,
+                tsconfig: this.relativeTsconfigPath ? path().join(this.projectRoot, this.relativeTsconfigPath) : undefined,
+                banner: this.props.banner ? { js: this.props.banner } : undefined,
+                footer: this.props.footer ? { js: this.props.footer } : undefined,
+                mainFields: this.props.mainFields,
+                inject: this.props.inject,
+                esbuildArgs: this.props.esbuildArgs,
+                commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(this.projectRoot, outputDir) ?? []]),
+                commandAfterBundling: chain([...this.props.commandHooks?.afterBundling(this.projectRoot, outputDir) ?? []]),
+                environment: this.environment,
+                projectRoot: this.projectRoot,
+              });
+
+              const __fs = require('fs');
+              const __dir = path().dirname(__out);
+              __fs.mkdirSync(__dir, { recursive: true });
+              __fs.writeFileSync(__out, '');
+
+              ${returnStatement}
+            }
+          `;
+
+          // ----------------------------------------------------------
+          // Pre-2.252 CDK: inject into createBundlingCommand
+          // (and createLocalBundlingSteps when present)
+          // ----------------------------------------------------------
+          if (isOldCdkStyle) {
+            contents = contents.replace(
+              oldCdkAnchor,
+              'const command = chain([...this.props.commandHooks',
             );
-          }
 
-          // Inject code to get the file path of the Lambda function and CDK hierarchy
-          // path to match it with the Lambda function. Store data in the global variable.
+            const codeToFind =
+              'afterBundling(options.inputDir,options.outputDir)??[]])';
 
-          //NOTE: This handles diferent versions of CDK. Newer versions use scope
-          // target: this.props.target ?? (typeof scope !== "undefined" ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
+            if (!contents.includes(codeToFind)) {
+              throw new Error(
+                `Can not find '${codeToFind.substring(0, 30)}...' in ${args.path}`,
+              );
+            }
 
-          contents = contents.replace(
-            codeToFind,
-            codeToFind +
-              `;
+            // Inject code to get the file path of the Lambda function and CDK hierarchy
+            // path to match it with the Lambda function. Store data in the global variable.
+
+            //NOTE: This handles diferent versions of CDK. Newer versions use scope
+            // target: this.props.target ?? (typeof scope !== "undefined" ? toTarget(scope,this.props.runtime): toTarget(this.props.runtime)),
+            contents = contents.replace(
+              codeToFind,
+              codeToFind +
+                `;
               if (process.env.CDK_BOOSTER_INSPECT === 'true') {
                 if (!options.outputDir.startsWith('/asset-output')) {
                   global.lambdas = global.lambdas ?? [];
 
                   const out = pathJoin(options.outputDir,outFile);
 
-                  const lambdaInfo = {
+                  global.lambdas.push({
                     command: command,
                     entryPoint: relativeEntryPath,
                     out,
@@ -649,9 +714,7 @@ async function compileCdk({
                     commandAfterBundling: chain([...(this.props.nodeModules && this.props.commandHooks?.beforeInstall(options.inputDir, options.outputDir)) ?? [], depsCommand, ...this.props.commandHooks?.afterBundling(options.inputDir, options.outputDir) ?? []]),
                     environment: this.environment,
                     projectRoot: this.projectRoot,
-                  };
-
-                  global.lambdas.push(lambdaInfo);
+                  });
 
                   const fs = require('fs');
                   const path = require('path');
@@ -662,62 +725,33 @@ async function compileCdk({
               }
               return command;
               `,
-          );
+            );
 
-          // For newer CDK versions: inject lambda info capture into createLocalBundlingSteps
-          // (the old injection via codeToFind/codeToFind2 only covers createBundleCommand
-          // which is only used for Docker bundling in newer CDK versions)
-          const codeToFind5 =
-            'createLocalBundlingSteps(scope,outputDir,esbuild,tsc){const steps=[];';
+            // Active local-bundling injection in pre-2.252 CDK:
+            // `createLocalBundlingSteps` returns the list of bundling
+            // steps. In inspect mode we skip building those steps and
+            // return an empty array so nothing executes.
+            const localStepsAnchor =
+              'createLocalBundlingSteps(scope,outputDir,esbuild,tsc){const steps=[];';
 
-          if (contents.includes(codeToFind5)) {
+            if (contents.includes(localStepsAnchor)) {
+              contents = contents.replace(
+                localStepsAnchor,
+                localStepsAnchor + captureLambdaInfo('return steps;'),
+              );
+            }
+          }
+
+          // ----------------------------------------------------------
+          // CDK 2.252+: inject into getLocalBundlingProvider().tryBundle
+          // (the unified createBundlingSteps/executeBundlingSteps flow).
+          // We short-circuit before executeBundlingSteps in inspect mode
+          // to capture the Lambda configuration and skip the actual build.
+          // ----------------------------------------------------------
+          if (isNewCdkStyle) {
             contents = contents.replace(
-              codeToFind5,
-              codeToFind5 +
-                `
-                if (process.env.CDK_BOOSTER_INSPECT === 'true') {
-                  global.lambdas = global.lambdas ?? [];
-
-                  const outFile = this.props.format === types_1().OutputFormat.ESM ? 'index.mjs' : 'index.js';
-                  const out = path().join(outputDir, outFile);
-                  const sourceMapEnabled = this.props.sourceMapMode ?? this.props.sourceMap;
-                  const sourcesContent = this.props.sourcesContent ?? true;
-
-                  const lambdaInfo = {
-                    entryPoint: path().join(this.projectRoot, this.relativeEntryPath),
-                    out,
-                    target: this.props.target ?? toTarget(scope, this.props.runtime),
-                    format: this.props.format,
-                    minify: this.props.minify,
-                    sourcemap: sourceMapEnabled ? ((this.props.sourceMapMode === 'default' || !this.props.sourceMapMode) ? true : this.props.sourceMapMode) : false,
-                    sourcesContent,
-                    external: this.externals,
-                    loader: this.props.loader,
-                    define: this.props.define,
-                    logLevel: this.props.logLevel,
-                    keepNames: this.props.keepNames,
-                    tsconfig: this.relativeTsconfigPath ? path().join(this.projectRoot, this.relativeTsconfigPath) : undefined,
-                    banner: this.props.banner ? { js: this.props.banner } : undefined,
-                    footer: this.props.footer ? { js: this.props.footer } : undefined,
-                    mainFields: this.props.mainFields,
-                    inject: this.props.inject,
-                    esbuildArgs: this.props.esbuildArgs,
-                    commandBeforeBundling: chain([...this.props.commandHooks?.beforeBundling(this.projectRoot, outputDir) ?? []]),
-                    commandAfterBundling: chain([...this.props.commandHooks?.afterBundling(this.projectRoot, outputDir) ?? []]),
-                    environment: this.environment,
-                    projectRoot: this.projectRoot,
-                  };
-
-                  global.lambdas.push(lambdaInfo);
-
-                  const _fs = require('fs');
-                  const dir = path().dirname(out);
-                  _fs.mkdirSync(dir, { recursive: true });
-                  _fs.writeFileSync(out, '');
-
-                  return steps;
-                }
-                `,
+              newCdkAnchor,
+              `${captureLambdaInfo('return true;')}\n${newCdkAnchor}`,
             );
           }
 
