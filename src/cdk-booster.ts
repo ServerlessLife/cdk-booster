@@ -836,8 +836,7 @@ async function compileCdk({
             'Object.defineProperty(this,APP_SYMBOL,{value:!0}),this.loadContext';
           // CDK 2.262+ uses APP_TYPE.mark(this) instead of APP_SYMBOL. APP_TYPE is an
           // exported property name (not minified), so this anchor stays stable.
-          const codeToFindModern =
-            'APP_TYPE.mark(this),this.loadContext';
+          const codeToFindModern = 'APP_TYPE.mark(this),this.loadContext';
 
           if (contents.includes(codeToFindLegacy)) {
             contents = contents.replace(
