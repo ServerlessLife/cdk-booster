@@ -33,6 +33,17 @@ jobs:
       constructs: '^10.5.1'
     secrets: inherit
 
+  test_global_aws_cdk_lib_2_261_0:
+    uses: ./.github/workflows/common-test.yml
+    needs: test_global_aws_cdk_lib_2_239_0
+    with:
+      mode: global
+      version: ${{ inputs.version }}
+      awsCdk: '2.1130.0'
+      awsCdkLib: '2.261.0'
+      constructs: '^10.6.0'
+    secrets: inherit
+
   test_local:
     uses: ./.github/workflows/common-test.yml
     with:
@@ -49,4 +60,15 @@ jobs:
       awsCdk: '2.1106.1'
       awsCdkLib: '2.239.0'
       constructs: '^10.5.1'
+    secrets: inherit
+
+  test_local_aws_cdk_lib_2_261_0:
+    uses: ./.github/workflows/common-test.yml
+    needs: test_local_aws_cdk_lib_2_239_0
+    with:
+      mode: local
+      version: ${{ inputs.version }}
+      awsCdk: '2.1130.0'
+      awsCdkLib: '2.261.0'
+      constructs: '^10.6.0'
     secrets: inherit

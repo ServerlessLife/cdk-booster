@@ -828,11 +828,16 @@ async function compileCdk({
           args.path.includes(path.join('aws-cdk-lib', 'core', 'lib', 'app.'))
         ) {
           // CDK ≤2.250 passed policyValidationBeta1 into Stage's super(); 2.251+ calls
-          // _addValidationPlugins instead. Anchor on APP_SYMBOL registration (unchanged).
+          // _addValidationPlugins instead. 2.251–2.261 anchored on APP_SYMBOL registration;
+          // 2.262+ replaced APP_SYMBOL with core-construct-finders APP_TYPE.mark(this).
           const codeToFindLegacy =
             ',policyValidationBeta1:props.policyValidationBeta1});';
           const codeToFindStable =
             'Object.defineProperty(this,APP_SYMBOL,{value:!0}),this.loadContext';
+          // CDK 2.262+ uses APP_TYPE.mark(this) instead of APP_SYMBOL. APP_TYPE is an
+          // exported property name (not minified), so this anchor stays stable.
+          const codeToFindModern =
+            'APP_TYPE.mark(this),this.loadContext';
 
           if (contents.includes(codeToFindLegacy)) {
             contents = contents.replace(
@@ -844,9 +849,14 @@ async function compileCdk({
               codeToFindStable,
               'Object.defineProperty(this,APP_SYMBOL,{value:!0}),global.cdkApp=this,this.loadContext',
             );
+          } else if (contents.includes(codeToFindModern)) {
+            contents = contents.replace(
+              codeToFindModern,
+              'APP_TYPE.mark(this),global.cdkApp=this,this.loadContext',
+            );
           } else {
             throw new Error(
-              `Can not find App constructor injection anchor (legacy policyValidationBeta1 or APP_SYMBOL) in ${args.path}`,
+              `Can not find App constructor injection anchor (legacy policyValidationBeta1, APP_SYMBOL, or APP_TYPE.mark) in ${args.path}`,
             );
           }
 
