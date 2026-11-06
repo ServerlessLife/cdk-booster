@@ -161,7 +161,7 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
   const buildBatches = createBuildCombinations(lambdasEsBuildCommands);
 
   // Bundle each group of functions with identical build options
-  const buildPromises: Promise<any>[] = [];
+  const buildPromises = new Set<Promise<void>>();
   let parallelCount = 0;
 
   for (const buildBatch of buildBatches) {
@@ -238,7 +238,11 @@ async function bundle(lambdasEsBuildCommands: LambdaBundle[]) {
       await Promise.race(buildPromises);
     }
 
-    buildPromises.push(build());
+    // a settled promise left in the set would make every later race resolve at once
+    const buildPromise = build().finally(() =>
+      buildPromises.delete(buildPromise),
+    );
+    buildPromises.add(buildPromise);
   }
 
   await Promise.all(buildPromises);
