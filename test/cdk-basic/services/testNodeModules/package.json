@@ -1,0 +1,9 @@
+{
+  "name": "cdk-basic-test-node-modules",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "//": "jsdom comes from bundling.nodeModules in lib/cdk-basic-stack.ts, not from bundling.",
+  "dependencies": {
+    "jsdom": "^31.0.0"
+  }
+}

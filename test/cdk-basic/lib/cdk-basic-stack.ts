@@ -142,6 +142,23 @@ export class CdkbasicStack extends cdk.Stack {
       },
     );
 
+    // Regression test for: nodeModules install dropped in pre-bundled assets.
+    // Vanilla CDK installs nodeModules into the asset; booster doesn't.
+    // source-map-support: pure CJS, not shipped in the Lambda runtime.
+    // No SKIP_CDK_BOOSTER: the drop-in path is the bug under test.
+    const functionTestNodeModules = new lambda_nodejs.NodejsFunction(
+      this,
+      'TestNodeModules',
+      {
+        entry: 'services/testNodeModules/lambda.ts',
+        handler: 'lambdaHandler',
+        runtime: lambda.Runtime.NODEJS_22_X,
+        bundling: {
+          nodeModules: ['jsdom'],
+        },
+      },
+    );
+
     const functionInlineCode = new lambda.Function(this, 'TestInlineCode', {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.lambdaHandler',
@@ -182,6 +199,10 @@ export class CdkbasicStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'FunctionNameTestJsCommonJs', {
       value: functionTestJsCommonJs.functionName,
+    });
+
+    new cdk.CfnOutput(this, 'FunctionNameTestNodeModules', {
+      value: functionTestNodeModules.functionName,
     });
 
     new cdk.CfnOutput(this, 'FunctionNameInlineCode', {
