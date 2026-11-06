@@ -15,8 +15,8 @@ jobs:
     name: lint & typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.node_version }}
           cache: 'npm'
@@ -39,9 +39,9 @@ jobs:
     concurrency:
       group: build
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Use Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.node_version }}
       - name: Install dependencies
@@ -57,7 +57,7 @@ jobs:
       - name: Bootstrap CDK
         # so I do not have to do it manually when CDK is updated
         run: npx cdk bootstrap aws://${{secrets.AWS_ACCOUNT_ID}}/eu-west-1
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist
