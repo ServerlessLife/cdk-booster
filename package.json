@@ -62,9 +62,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@tsconfig/node22": "^22.0.6",
+    "@tsconfig/node24": "^24.0.5",
     "@types/eslint-config-prettier": "^6.11.3",
     "@types/node": "^26.6.6",
+    "@typescript/native": "npm:typescript@~7.0.2",
     "aws-cdk": "2.1147.0",
     "aws-cdk-lib": "2.275.0",
     "constructs": "^10.8.1",
@@ -85,7 +86,7 @@
   "dependencies": {
     "chalk": "^6.0.1",
     "commander": "^15.0.0",
-    "typescript": "~6.0.3"
+    "typescript": "npm:@typescript/typescript6@~6.0.2"
   },
   "peerDependencies": {
     "esbuild": "^0"

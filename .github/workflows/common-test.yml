@@ -35,7 +35,7 @@ permissions:
 
 env:
   REAL_NPM: ${{ inputs.mode == 'global' || inputs.mode == 'local' }}
-  node_version: 22
+  node_version: 24
 
 jobs:
   test-cdk-basic:
