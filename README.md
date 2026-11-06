@@ -249,6 +249,8 @@ new NodejsFunction(this, 'my-handler', {
 
 (alphabetical)
 
+- [Marcelo Eduardo de Andrade Jr.](https://github.com/marcelinhov2)
+
 - ⭐ Your name here for notable code or documentation contributions, or sample projects submitted with a bug report that resulted in tool improvement.
 
 ## Disclaimer
