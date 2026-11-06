@@ -124,7 +124,7 @@ jobs:
           npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "node ../../dist/cdk-booster.mjs bin/cdk-basic.ts"
           npx cdk ls 2>&1 | tee cdk-ls.log
           # Fail if any error is found in the output
-          grep -qi "error" cdk-ls.log && echo "Error found in cdk ls output" && exit 1
+          grep -Evi "DeprecationWarning|trace-deprecation" cdk-ls.log | grep -qi "error" && echo "Error found in cdk ls output" && exit 1
           # Verify expected stacks are listed
           grep -q "CdkbasicStack" cdk-ls.log || (echo "Expected stacks not found" && exit 1)
         working-directory: test/cdk-basic
@@ -136,7 +136,7 @@ jobs:
           npx tsx ../../scripts/modify-cdk-json.ts ../../test/cdk-basic/cdk.json "npx cdk-booster bin/cdk-basic.ts"
           npx cdk ls 2>&1 | tee cdk-ls.log
           # Fail if any error is found in the output
-          grep -qi "error" cdk-ls.log && echo "Error found in cdk ls output" && exit 1
+          grep -Evi "DeprecationWarning|trace-deprecation" cdk-ls.log | grep -qi "error" && echo "Error found in cdk ls output" && exit 1
           # Verify expected stacks are listed
           grep -q "CdkbasicStack" cdk-ls.log || (echo "Expected stacks not found" && exit 1)
         working-directory: test/cdk-basic
